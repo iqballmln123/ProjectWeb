@@ -1,0 +1,10 @@
+[
+    {"departemen": "Engineering", "headcount": 45, "anggaran": 2500000000, "realisasi": 2350000000},
+    {"departemen": "Marketing", "headcount": 20, "anggaran": 1800000000, "realisasi": 1950000000},
+    {"departemen": "Sales", "headcount": 35, "anggaran": 3200000000, "realisasi": 3450000000},
+    {"departemen": "Operations", "headcount": 28, "anggaran": 1500000000, "realisasi": 1420000000},
+    {"departemen": "Finance", "headcount": 15, "anggaran": 900000000, "realisasi": 870000000},
+    {"departemen": "HR", "headcount": 12, "anggaran": 750000000, "realisasi": 720000000},
+    {"departemen": "Product", "headcount": 18, "anggaran": 1200000000, "realisasi": 1150000000},
+    {"departemen": "Customer Success", "headcount": 22, "anggaran": 1100000000, "realisasi": 1080000000}
+]
