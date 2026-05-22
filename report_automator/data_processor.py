@@ -9,8 +9,8 @@ Bertanggung jawab untuk:
 """
 
 import pandas as pd
-import json
 import io
+import csv
 from typing import Optional, Tuple, List
 
 
@@ -40,43 +40,66 @@ def load_data(uploaded_file) -> pd.DataFrame:
     content = uploaded_file.read()
 
     if filename.endswith(".csv"):
-        # Coba beberapa encoding umum dan delimiter otomatis
+        # ── Langkah 1: Decode bytes → str dengan fallback encoding ───────────
+        decoded_str = None
         for encoding in ("utf-8", "utf-8-sig", "latin1", "cp1252"):
             try:
-                df = pd.read_csv(
-                    io.BytesIO(content),
-                    sep=None,
-                    engine="python",
-                    encoding=encoding,
-                    encoding_errors="replace",
-                )
+                decoded_str = content.decode(encoding)
                 break
-            except Exception:
+            except (UnicodeDecodeError, LookupError):
                 continue
-        else:
-            # Fallback paling dasar
-            df = pd.read_csv(io.BytesIO(content), encoding="latin1")
+        if decoded_str is None:
+            decoded_str = content.decode("latin1", errors="replace")
 
-    elif filename.endswith(".json"):
-        # Dukung format JSON array of objects maupun dict of arrays
-        data = json.loads(content)
-        if isinstance(data, list):
-            df = pd.DataFrame(data)
-        elif isinstance(data, dict):
-            df = pd.DataFrame(data)
-        else:
-            raise ValueError(
-                "Format JSON tidak dikenali. Gunakan array of objects atau dict of arrays."
-            )
+        # ── Langkah 2: Deteksi delimiter via csv.Sniffer ─────────────────────
+        detected_sep = ","
+        try:
+            dialect = csv.Sniffer().sniff(decoded_str[:4096], delimiters=",;\t|")
+            detected_sep = dialect.delimiter
+        except csv.Error:
+            # Fallback: hitung kemunculan tiap delimiter di 1024 karakter pertama
+            counts = {d: decoded_str[:1024].count(d) for d in [",", ";", "\t"]}
+            detected_sep = max(counts, key=counts.get)
+
+        # ── Langkah 3: Parse menggunakan csv stdlib → DataFrame ───────────────
+        # Menghindari sepenuhnya pandas CSV parser yang bermasalah di pandas 3.x
+        try:
+            reader = csv.reader(io.StringIO(decoded_str), delimiter=detected_sep)
+            rows = [row for row in reader if any(cell.strip() for cell in row)]
+            if not rows:
+                raise ValueError("File CSV tidak mengandung baris data.")
+            headers = [h.strip() for h in rows[0]]
+            data = rows[1:]
+            df = pd.DataFrame(data, columns=headers)
+        except Exception as csv_err:
+            raise ValueError(f"Gagal mem-parse CSV: {csv_err}")
+
     else:
-        raise ValueError(f"Format file '{filename}' tidak didukung. Gunakan CSV atau JSON.")
+        raise ValueError(
+            f"Format file '{filename}' tidak didukung. "
+            "Hanya file CSV (.csv) yang diterima."
+        )
 
     if df.empty:
         raise ValueError("File yang diupload tidak mengandung data (kosong).")
 
+    # ── FIX 1: Bersihkan spasi tersembunyi di semua nama kolom ───────────────
+    # Menangani kasus seperti ' Bulan' atau 'Bulan ' yang menyebabkan KeyError.
+    df.columns = df.columns.str.strip()
+
+    # ── FIX 2: Hapus kolom indeks otomatis 'Unnamed: X' ──────────────────────
+    # Kolom ini muncul ketika CSV di-export dengan df.to_csv() tanpa index=False.
+    # Pola regex menangkap semua variannya: 'Unnamed: 0', 'Unnamed: 1', dst.
+    unnamed_cols = [c for c in df.columns if c.startswith("Unnamed:")]
+    if unnamed_cols:
+        df = df.drop(columns=unnamed_cols)
+
     # Coba konversi kolom yang mungkin berformat angka tapi bertipe string
     for col in df.columns:
-        df[col] = pd.to_numeric(df[col], errors="ignore")
+        try:
+            df[col] = pd.to_numeric(df[col], errors="raise")
+        except Exception:
+            pass
 
     return df
 

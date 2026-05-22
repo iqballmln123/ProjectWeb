@@ -140,7 +140,7 @@ st.markdown("""
 st.markdown("""
 <div class="main-header">
     <h1>📊 Report Automator</h1>
-    <p>Upload data CSV/JSON → Generate Bar Chart → Export ke PowerPoint secara otomatis</p>
+    <p>Upload data CSV → Generate Bar Chart → Export ke PowerPoint secara otomatis</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -210,7 +210,7 @@ with st.sidebar:
 # ─────────────────────────────────────────────
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.info("**Step 1** · Upload File CSV atau JSON")
+    st.info("**Step 1** · Upload File CSV")
 with col2:
     st.info("**Step 2** · Preview Data & Grafik")
 with col3:
@@ -227,8 +227,8 @@ st.markdown("### 📂 Upload File Data")
 
 uploaded_file = st.file_uploader(
     label="Seret & lepas file di sini, atau klik untuk memilih",
-    type=["csv", "json"],
-    help="Format yang didukung: CSV (.csv) dan JSON (.json). Ukuran maksimal 200MB.",
+    type=["csv"],
+    help="Format yang didukung: CSV (.csv). Ukuran maksimal 200MB.",
     label_visibility="visible"
 )
 
@@ -371,7 +371,7 @@ else:
     ">
         <div style="font-size: 4rem; margin-bottom: 1rem;">📁</div>
         <h3 style="color: #e6edf3; margin-bottom: 0.5rem;">Belum ada file yang diupload</h3>
-        <p>Upload file <strong>CSV</strong> atau <strong>JSON</strong> Anda di atas untuk memulai proses automasi laporan.</p>
+        <p>Upload file <strong>CSV</strong> Anda di atas untuk memulai proses automasi laporan.</p>
         <p style="font-size:0.85rem; margin-top:1rem;">
             💡 <em>Contoh: data penjualan bulanan, laporan keuangan, atau data operasional lainnya.</em>
         </p>
@@ -386,10 +386,4 @@ Januari,120000,100000
 Februari,98000,100000
 Maret,145000,120000
 April,132000,120000""", language="csv")
-
-        st.markdown("**Format JSON (array of objects):**")
-        st.code("""[
-    {"bulan": "Januari", "penjualan": 120000, "target": 100000},
-    {"bulan": "Februari", "penjualan": 98000, "target": 100000},
-    {"bulan": "Maret", "penjualan": 145000, "target": 120000}
-]""", language="json")
+        st.info("💡 Pastikan baris pertama adalah **header/nama kolom**, dan minimal ada satu kolom berisi angka.")

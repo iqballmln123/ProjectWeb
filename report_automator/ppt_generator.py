@@ -16,7 +16,6 @@ from pptx import Presentation
 from pptx.util import Inches, Pt, Emu, Cm
 from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
-from pptx.util import Inches, Pt
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -537,13 +536,10 @@ def generate_pptx(
     bytes
         File .pptx dalam format bytes, siap untuk didownload.
     """
-    # Inisialisasi Presentation dengan rasio 16:9
+    # Inisialisasi Presentation — ukuran 10x7.5 inch agar teks lebih lega
     prs = Presentation()
-    prs.slide_width = Inches(10)    # 25.4 cm
-    prs.slide_height = Inches(7.5)  # 19.05 cm (standard 4:3) — lebih lebar
-    # Untuk 16:9 gunakan Inches(10) x Inches(5.625)
-    # Di sini pakai 10x7.5 agar teks lebih lega
-    prs.slide_height = Inches(7.5)
+    prs.slide_width = Inches(10)   # lebar  ~25.4 cm
+    prs.slide_height = Inches(7.5) # tinggi ~19.05 cm
 
     # ── Bangun setiap slide ────────────────────────────────────────────────────
     _build_slide_1_title(
