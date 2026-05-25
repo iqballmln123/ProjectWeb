@@ -29,7 +29,7 @@ CORPORATE_STYLE = {
     "text_color": "#2C3E50",        # Warna teks utama (dark navy)
     "title_color": "#1A252F",       # Warna judul (lebih gelap)
     "subtitle_color": "#7F8C8D",    # Warna label & subtitle
-    "bar_alpha": 0.88,              # Transparansi batang
+    "bar_alpha": 0.99,              # Transparansi batang
     "bar_edge_color": "white",      # Border batang
     "value_label_color": "#2C3E50", # Warna label nilai di atas batang
     "figure_dpi": 150,              # DPI output gambar

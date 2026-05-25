@@ -11,6 +11,7 @@ Bertanggung jawab untuk:
 import pandas as pd
 import io
 import csv
+import openpyxl
 from typing import Optional, Tuple, List
 
 
@@ -38,6 +39,11 @@ def load_data(uploaded_file) -> pd.DataFrame:
     """
     filename = uploaded_file.name.lower()
     content = uploaded_file.read()
+
+    # ── Dispatch ke loader yang sesuai berdasarkan ekstensi ──────────────────
+    if filename.endswith((".xlsx", ".xls")):
+        info = get_excel_info(content)
+        return load_excel_sheet(content, info["recommended_sheet"])
 
     if filename.endswith(".csv"):
         # ── Langkah 1: Decode bytes → str dengan fallback encoding ───────────
@@ -276,3 +282,107 @@ def generate_summary_bullets(
     ]
 
     return bullets
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FUNGSI: get_excel_info
+# ─────────────────────────────────────────────────────────────────────────────
+def get_excel_info(file_bytes: bytes) -> dict:
+    """
+    Membaca metadata dari file Excel: daftar sheet, deteksi chart, dan
+    rekomendasi sheet (sheet pertama yang memiliki data).
+
+    Parameter:
+    ----------
+    file_bytes : bytes
+        Konten file Excel dalam bentuk bytes.
+
+    Returns:
+    --------
+    dict dengan kunci:
+        - sheet_names      : List[str] — semua nama sheet
+        - has_charts       : bool — True jika ada chart di workbook
+        - recommended_sheet: str  — sheet pertama yang berisi data
+    """
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+    except Exception as e:
+        raise ValueError(f"Gagal membuka file Excel: {e}")
+
+    sheet_names = wb.sheetnames
+    if not sheet_names:
+        raise ValueError("File Excel tidak memiliki sheet.")
+
+    # Deteksi chart di seluruh sheet
+    has_charts = False
+    for ws in wb.worksheets:
+        if hasattr(ws, "_charts") and ws._charts:
+            has_charts = True
+            break
+
+    # Rekomendasikan sheet pertama yang punya data (lebih dari 1 baris)
+    recommended_sheet = sheet_names[0]  # fallback ke sheet pertama
+    for name in sheet_names:
+        ws = wb[name]
+        if ws.max_row and ws.max_row > 1 and ws.max_column and ws.max_column > 0:
+            recommended_sheet = name
+            break
+
+    return {
+        "sheet_names": sheet_names,
+        "has_charts": has_charts,
+        "recommended_sheet": recommended_sheet,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FUNGSI: load_excel_sheet
+# ─────────────────────────────────────────────────────────────────────────────
+def load_excel_sheet(file_bytes: bytes, sheet_name: str) -> pd.DataFrame:
+    """
+    Membaca sheet tertentu dari file Excel ke dalam Pandas DataFrame,
+    dengan proses cleaning yang identik dengan load_data() untuk CSV:
+    - Strip spasi di nama kolom
+    - Hapus kolom 'Unnamed: X'
+    - Konversi string numerik ke tipe angka
+
+    Parameter:
+    ----------
+    file_bytes : bytes
+        Konten file Excel dalam bentuk bytes.
+    sheet_name : str
+        Nama sheet yang akan dibaca.
+
+    Returns:
+    --------
+    pd.DataFrame
+    """
+    try:
+        df = pd.read_excel(
+            io.BytesIO(file_bytes),
+            sheet_name=sheet_name,
+            engine="openpyxl",
+        )
+    except Exception as e:
+        raise ValueError(f"Gagal membaca sheet '{sheet_name}': {e}")
+
+    if df.empty:
+        raise ValueError(f"Sheet '{sheet_name}' tidak mengandung data.")
+
+    # ── Cleaning identik dengan CSV ───────────────────────────────────────────
+    # 1. Strip spasi di nama kolom
+    df.columns = [str(c).strip() for c in df.columns]
+
+    # 2. Hapus kolom indeks otomatis 'Unnamed: X'
+    unnamed_cols = [c for c in df.columns if c.startswith("Unnamed:")]
+    if unnamed_cols:
+        df = df.drop(columns=unnamed_cols)
+
+    # 3. Konversi kolom string → numerik jika memungkinkan
+    for col in df.columns:
+        try:
+            df[col] = pd.to_numeric(df[col], errors="raise")
+        except Exception:
+            pass
+
+    return df

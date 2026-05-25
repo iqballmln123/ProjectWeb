@@ -11,7 +11,10 @@ import io
 import json
 from datetime import datetime
 
-from data_processor import load_data, aggregate_data, generate_summary_bullets
+from data_processor import (
+    load_data, aggregate_data, generate_summary_bullets,
+    get_excel_info, load_excel_sheet,
+)
 from chart_generator import create_bar_chart
 from ppt_generator import generate_pptx
 
@@ -210,7 +213,7 @@ with st.sidebar:
 # ─────────────────────────────────────────────
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.info("**Step 1** · Upload File CSV")
+    st.info("**Step 1** · Upload CSV atau Excel")
 with col2:
     st.info("**Step 2** · Preview Data & Grafik")
 with col3:
@@ -227,8 +230,8 @@ st.markdown("### 📂 Upload File Data")
 
 uploaded_file = st.file_uploader(
     label="Seret & lepas file di sini, atau klik untuk memilih",
-    type=["csv"],
-    help="Format yang didukung: CSV (.csv). Ukuran maksimal 200MB.",
+    type=["csv", "xlsx", "xls"],
+    help="Format yang didukung: CSV (.csv) atau Excel (.xlsx/.xls). Ukuran maksimal 200MB.",
     label_visibility="visible"
 )
 
@@ -238,22 +241,76 @@ uploaded_file = st.file_uploader(
 # ─────────────────────────────────────────────
 if uploaded_file is not None:
 
-    # ── Load & tampilkan data mentah ──────────────────────────
-    try:
-        df_raw = load_data(uploaded_file)
-    except Exception as e:
-        st.error(f"❌ Gagal membaca file: {e}")
-        st.stop()
+    filename_lower = uploaded_file.name.lower()
+    is_excel = filename_lower.endswith((".xlsx", ".xls"))
+
+    # ── Baca & load data ───────────────────────────────────────────────
+    if is_excel:
+        file_bytes = uploaded_file.getvalue()
+
+        # Ekstrak info workbook (sheet names, chart detection)
+        try:
+            excel_info = get_excel_info(file_bytes)
+        except Exception as e:
+            st.error(f"❌ Gagal membaca file Excel: {e}")
+            st.stop()
+
+        # ── Sheet Selector (tampilkan hanya jika lebih dari 1 sheet) ──
+        if len(excel_info["sheet_names"]) > 1:
+            st.markdown("### 📊 Pilih Sheet Data")
+            selected_sheet = st.selectbox(
+                "Workbook ini memiliki beberapa sheet. Pilih sheet yang berisi data:",
+                options=excel_info["sheet_names"],
+                index=excel_info["sheet_names"].index(excel_info["recommended_sheet"]),
+                help=(
+                    f"Sheet yang direkomendasikan: ‘{excel_info['recommended_sheet']}’ "
+                    f"(sheet pertama yang terdeteksi memiliki data)"
+                ),
+            )
+        else:
+            selected_sheet = excel_info["sheet_names"][0]
+
+        # ── Banner jika workbook memiliki chart ───────────────────────────
+        if excel_info["has_charts"]:
+            st.info(
+                "💡 **Excel Anda memiliki chart!**  \n\n"
+                "Chart Excel tidak dapat diekstrak secara otomatis karena "
+                "tersimpan sebagai data vektor, bukan gambar.  \n"
+                "**Solusi:** Screenshot chart dari Excel Anda → simpan sebagai PNG/JPG → "
+                "upload di bagian **📎 Lampiran Gambar** di bawah.  \n"
+                "Gambar tersebut akan ditambahkan sebagai slide khusus di dalam PPTX."
+            )
+
+        # ── Load sheet yang dipilih ───────────────────────────────────
+        try:
+            df_raw = load_excel_sheet(file_bytes, selected_sheet)
+        except Exception as e:
+            st.error(f"❌ Gagal membaca sheet ‘{selected_sheet}’: {e}")
+            st.stop()
+    else:
+        # ── CSV path (alur yang sudah ada) ─────────────────────────────
+        try:
+            df_raw = load_data(uploaded_file)
+        except Exception as e:
+            st.error(f"❌ Gagal membaca file: {e}")
+            st.stop()
 
     st.success(f"✅ File **{uploaded_file.name}** berhasil dimuat — "
                f"**{df_raw.shape[0]:,} baris** × **{df_raw.shape[1]} kolom**")
 
     st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 
-    # ── Preview data ──────────────────────────────────────────
-    st.markdown("### 🔍 Preview Data Mentah")
-    with st.expander("Tampilkan data mentah (10 baris pertama)", expanded=False):
-        st.dataframe(df_raw.head(10), use_container_width=True)
+    # ── Preview data (tabel penuh) ────────────────────────────
+    st.markdown("### 🔍 Data Mentah Lengkap")
+    with st.expander(
+        f"Tampilkan seluruh data ({df_raw.shape[0]:,} baris × {df_raw.shape[1]} kolom)",
+        expanded=True
+    ):
+        st.dataframe(
+            df_raw,
+            use_container_width=True,
+            height=400,
+        )
 
     # ── Deteksi kolom otomatis ────────────────────────────────
     # Gunakan input user jika tersedia, jika tidak auto-detect
@@ -284,9 +341,12 @@ if uploaded_file is not None:
     with m4:
         st.metric(f"Nilai Tertinggi", f"{df_agg[y_col_final].max():,.2f}")
 
-    # Tampilkan tabel agregasi
-    with st.expander("Tampilkan tabel agregasi", expanded=True):
-        st.dataframe(df_agg, use_container_width=True)
+    # Tampilkan tabel agregasi (seluruh baris)
+    with st.expander(
+        f"Tampilkan tabel agregasi ({len(df_agg):,} baris)",
+        expanded=True
+    ):
+        st.dataframe(df_agg, use_container_width=True, height=350)
 
     # ── Generate bar chart ────────────────────────────────────
     chart_buf = create_bar_chart(
@@ -301,7 +361,7 @@ if uploaded_file is not None:
     st.markdown("### 📈 Visualisasi Bar Chart")
     st.image(chart_buf, use_container_width=True, caption=f"{agg_label} per {x_col_final}")
 
-    # ── Generate bullet points summary ────────────────────────
+    # ── Generate bullet points summary ───────────────────────────────
     bullets = generate_summary_bullets(
         df_raw=df_raw,
         df_agg=df_agg,
@@ -310,6 +370,73 @@ if uploaded_file is not None:
         agg_label=agg_label,
         report_title=report_title,
     )
+
+    # ── LAMPIRAN GAMBAR (Opsional) ────────────────────────────────────
+    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+    st.markdown("### 📎 Lampiran Gambar (Opsional — Maks. 5 Gambar)")
+    st.markdown(
+        "<small>Upload gambar atau screenshot chart Excel Anda. "
+        "Setiap gambar akan menjadi <strong>slide lampiran tersendiri</strong> "
+        "sebelum slide Penutup di dalam PPTX.</small>",
+        unsafe_allow_html=True,
+    )
+
+    uploaded_images = st.file_uploader(
+        "Upload gambar (PNG / JPG / JPEG)",
+        type=["png", "jpg", "jpeg"],
+        accept_multiple_files=True,
+        key="user_image_uploader",
+        help="Maks. 5 gambar. Cocok untuk screenshot chart Excel, infografis, atau visual pendukung lainnya.",
+    )
+
+    user_images = []
+    if uploaded_images:
+        images_to_use = uploaded_images[:5]
+        if len(uploaded_images) > 5:
+            st.warning(
+                f"⚠️ Hanya 5 gambar pertama yang akan digunakan "
+                f"(Anda mengupload {len(uploaded_images)} gambar)."
+            )
+
+        st.markdown(
+            f"**{len(images_to_use)} gambar** siap digunakan — "
+            "berikan **judul** dan **keterangan singkat** untuk setiap gambar:"
+        )
+        for i, img_file in enumerate(images_to_use):
+            img_bytes = img_file.getvalue()
+            st.markdown(f"---\n**Gambar {i + 1}** — `{img_file.name}`")
+            col_prev, col_form = st.columns([1, 2])
+            with col_prev:
+                st.image(img_bytes, use_container_width=True)
+                side = "🖼️ Gambar kiri · 📝 Teks kanan" if i % 2 == 0 else "📝 Teks kiri · 🖼️ Gambar kanan"
+                st.caption(f"🔄 Layout di slide: {side}")
+            with col_form:
+                default_cap = (
+                    img_file.name.rsplit(".", 1)[0]
+                    .replace("_", " ")
+                    .replace("-", " ")
+                )
+                caption = st.text_input(
+                    f"📝 Judul Gambar {i + 1}",
+                    value=default_cap,
+                    key=f"img_caption_{i}",
+                    placeholder="Contoh: Chart Penjualan Q1 2024",
+                )
+                description = st.text_area(
+                    f"📋 Keterangan Singkat Gambar {i + 1}",
+                    value="",
+                    key=f"img_desc_{i}",
+                    height=80,
+                    placeholder="Contoh: Penjualan Q1 naik 15% YoY, tertinggi di cluster Jabodetabek.",
+                )
+                st.caption(
+                    "📌 Judul tampil **bold** · Keterangan singkat (1–2 kalimat) muncul di panel merah."
+                )
+            user_images.append({
+                "bytes": img_bytes,
+                "caption": caption,
+                "description": description,
+            })
 
     # ── STEP 3: Generate & Download PPTX ─────────────────────
     st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
@@ -329,15 +456,23 @@ if uploaded_file is not None:
                     chart_buf=chart_buf,
                     chart_title=f"{agg_label} per {x_col_final}",
                     analysis_text=(
-                        f"Grafik di atas menampilkan {agg_label.lower()} dari kolom "
-                        f"'{y_col_final}' berdasarkan '{x_col_final}'. "
-                        f"Nilai tertinggi tercatat sebesar "
-                        f"{df_agg[y_col_final].max():,.2f} pada "
-                        f"'{df_agg.loc[df_agg[y_col_final].idxmax(), x_col_final]}', "
-                        f"sementara rata-rata keseluruhan adalah "
-                        f"{df_agg[y_col_final].mean():,.2f}. "
-                        f"Tren ini dapat menjadi acuan pengambilan keputusan strategis."
+                        f"Grafik menampilkan {agg_label.lower()} dari kolom "
+                        f"'{y_col_final}' berdasarkan '{x_col_final}'.\n\n"
+                        f"Nilai tertinggi: "
+                        f"{df_agg[y_col_final].max():,.2f} "
+                        f"({df_agg.loc[df_agg[y_col_final].idxmax(), x_col_final]}).\n\n"
+                        f"Nilai terendah: "
+                        f"{df_agg[y_col_final].min():,.2f} "
+                        f"({df_agg.loc[df_agg[y_col_final].idxmin(), x_col_final]}).\n\n"
+                        f"Rata-rata keseluruhan: "
+                        f"{df_agg[y_col_final].mean():,.2f}.\n\n"
+                        f"Total kategori: {len(df_agg)} · Total baris data: {df_raw.shape[0]:,}.\n\n"
+                        f"Tren ini dapat digunakan sebagai acuan perencanaan dan pengambilan keputusan strategis operasional jaringan Telkomsel."
                     ),
+                    df_raw=df_raw,
+                    x_col=x_col_final,
+                    y_col=y_col_final,
+                    user_images=user_images if user_images else None,
                 )
                 st.session_state["pptx_buf"] = pptx_buf
                 st.session_state["filename"] = (
@@ -371,7 +506,7 @@ else:
     ">
         <div style="font-size: 4rem; margin-bottom: 1rem;">📁</div>
         <h3 style="color: #e6edf3; margin-bottom: 0.5rem;">Belum ada file yang diupload</h3>
-        <p>Upload file <strong>CSV</strong> Anda di atas untuk memulai proses automasi laporan.</p>
+        <p>Upload file <strong>CSV</strong> atau <strong>Excel (.xlsx / .xls)</strong> Anda di atas untuk memulai.</p>
         <p style="font-size:0.85rem; margin-top:1rem;">
             💡 <em>Contoh: data penjualan bulanan, laporan keuangan, atau data operasional lainnya.</em>
         </p>
@@ -386,4 +521,9 @@ Januari,120000,100000
 Februari,98000,100000
 Maret,145000,120000
 April,132000,120000""", language="csv")
+        st.markdown("**Format Excel (.xlsx):**")
+        st.info(
+            "Buka Excel → isi data dengan baris pertama sebagai header kolom → simpan sebagai .xlsx.  \n"
+            "Jika memiliki beberapa sheet, Anda bisa memilih sheet mana yang akan diproses."
+        )
         st.info("💡 Pastikan baris pertama adalah **header/nama kolom**, dan minimal ada satu kolom berisi angka.")
