@@ -1,450 +1,344 @@
 """
-app.py - Entry point aplikasi Streamlit untuk Automasi Laporan
-=================================================================
-Menggabungkan semua modul: data processing, chart generation, 
-dan PPT generation ke dalam satu UI yang interaktif.
+app.py - Entry point aplikasi Streamlit untuk Automasi Laporan Telkomsel
+=========================================================================
+Template: Coverage Activity Report
+Struktur:
+  Slide 1       : Cover
+  Slide 2..N    : Satu slide per baris data (Site)
+  Slide terakhir: Penutup
 """
 
 import streamlit as st
 import pandas as pd
 import io
-import json
 from datetime import datetime
 
 from data_processor import (
-    load_data, aggregate_data, generate_summary_bullets,
-    get_excel_info, load_excel_sheet,
+    get_excel_info, load_excel_sheet, load_data,
 )
-from chart_generator import create_bar_chart
-from ppt_generator import generate_pptx
+from ppt_generator import (
+    generate_pptx,
+    COL_SITE_ID, COL_SITE_NAME, COL_PURPOSE, COL_CITY,
+    COL_FINDING, COL_PLAN_ACTION, COL_SUPPORT, COL_GOALS, COL_INCREMENT,
+)
 
 
-# ─────────────────────────────────────────────
-# Konfigurasi halaman Streamlit
-# ─────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# Konfigurasi halaman
+# ─────────────────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="📊 Report Automator",
-    page_icon="📊",
+    page_title=" Telkomsel Report Automator",
+    page_icon="📡",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ─────────────────────────────────────────────
-# Custom CSS untuk tampilan yang lebih premium
-# ─────────────────────────────────────────────
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-    }
-
-    /* Header utama */
     .main-header {
-        background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+        background: linear-gradient(135deg, #8B0000, #CC0000, #FF3333);
         color: white;
-        padding: 2rem 2.5rem;
+        padding: 1.8rem 2.5rem;
         border-radius: 16px;
-        margin-bottom: 2rem;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        margin-bottom: 1.5rem;
+        box-shadow: 0 8px 32px rgba(204,0,0,0.35);
     }
+    .main-header h1 { font-size: 2rem; font-weight: 700; margin: 0; }
+    .main-header p  { margin: 0.4rem 0 0 0; opacity: 0.85; font-size: 0.95rem; }
 
-    .main-header h1 {
-        font-size: 2.2rem;
-        font-weight: 700;
-        margin: 0;
-        letter-spacing: -0.5px;
-    }
-
-    .main-header p {
-        margin: 0.5rem 0 0 0;
-        opacity: 0.75;
-        font-size: 1rem;
-    }
-
-    /* Card metric */
-    .metric-card {
-        background: #1a1a2e;
-        border: 1px solid #16213e;
-        border-radius: 12px;
-        padding: 1.2rem 1.5rem;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    }
-
-    /* Badge status */
-    .status-badge {
-        display: inline-block;
-        padding: 4px 12px;
+    .step-badge {
+        background: linear-gradient(135deg, #CC0000, #FF3333);
+        color: white;
+        padding: 0.35rem 1rem;
         border-radius: 20px;
-        font-size: 0.78rem;
-        font-weight: 600;
-        background: linear-gradient(135deg, #00b09b, #96c93d);
-        color: white;
+        font-weight: 700;
+        font-size: 0.8rem;
+        display: inline-block;
+        margin-bottom: 0.5rem;
     }
 
-    /* Tombol download kustom */
-    .stDownloadButton > button {
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
-        border: none;
+    .site-card {
+        background: #1a1a2e;
+        border: 1px solid #CC0000;
         border-radius: 10px;
-        padding: 0.7rem 2rem;
-        font-weight: 600;
-        font-size: 1rem;
-        width: 100%;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        padding: 1rem 1.2rem;
+        margin-bottom: 0.8rem;
     }
 
+    section[data-testid="stSidebar"] { background: #0d1117; }
+    section[data-testid="stSidebar"] * { color: #e6edf3 !important; }
+
+    .stDownloadButton > button {
+        background: linear-gradient(135deg, #CC0000, #990000);
+        color: white; border: none; border-radius: 10px;
+        padding: 0.7rem 2rem; font-weight: 700; font-size: 1rem;
+        width: 100%; transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(204,0,0,0.4);
+    }
     .stDownloadButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        box-shadow: 0 6px 20px rgba(204,0,0,0.6);
     }
-
-    /* Sidebar styling */
-    section[data-testid="stSidebar"] {
-        background: #0d1117;
-    }
-
-    section[data-testid="stSidebar"] * {
-        color: #e6edf3 !important;
-    }
-
-    /* Divider */
     .section-divider {
-        border: none;
-        height: 1px;
-        background: linear-gradient(to right, transparent, #333, transparent);
+        border: none; height: 1px;
+        background: linear-gradient(to right, transparent, #CC0000, transparent);
         margin: 1.5rem 0;
-    }
-
-    /* Step indicator */
-    .step-badge {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
-        font-weight: 700;
-        font-size: 0.85rem;
-        margin-right: 0.5rem;
     }
 </style>
 """, unsafe_allow_html=True)
 
 
-# ─────────────────────────────────────────────
-# Header Utama
-# ─────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# Header
+# ─────────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="main-header">
-    <h1>📊 Report Automator</h1>
-    <p>Upload data CSV → Generate Bar Chart → Export ke PowerPoint secara otomatis</p>
+    <h1>📡 Telkomsel Coverage Report Automator</h1>
+    <p>Upload data Excel → Preview per Site → Generate PowerPoint otomatis (Cover · Data per Site · Penutup)</p>
 </div>
 """, unsafe_allow_html=True)
 
 
-# ─────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # Sidebar: Konfigurasi Laporan
-# ─────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## ⚙️ Konfigurasi Laporan")
+    st.markdown("##  Konfigurasi Laporan")
     st.markdown("---")
 
     report_title = st.text_input(
-        "📝 Judul Laporan",
-        value="Laporan Analisis Data Bulanan",
-        help="Judul ini akan muncul di Slide 1 presentasi."
+        " Judul Laporan",
+        value="Tracking Activity NOP 2026",
+        help="Judul ini akan muncul di Slide Cover.",
     )
-
     report_subtitle = st.text_input(
-        "📌 Sub-judul / Departemen",
-        value="Divisi Business Intelligence",
-        help="Sub-judul yang muncul di bawah judul utama."
+        " Sub-judul / Departemen",
+        value="Divisi Network Operation",
+        help="Sub-judul di bawah judul utama.",
     )
-
     author_name = st.text_input(
-        "👤 Nama Pembuat",
-        value="Tim Analitik",
-        help="Nama yang akan tercantum di slide."
+        " Nama Pembuat",
+        value="Tim Network Operation",
     )
-
     report_date = st.date_input(
-        "📅 Tanggal Laporan",
+        " Tanggal Laporan",
         value=datetime.today(),
     )
 
     st.markdown("---")
-    st.markdown("### 🎨 Opsi Grafik")
-
-    chart_color = st.color_picker(
-        "Warna Batang Chart",
-        value="#4C72B0",
-        help="Pilih warna untuk bar chart."
-    )
-
-    x_col = st.text_input(
-        "Kolom Sumbu X (Kategori)",
-        value="",
-        placeholder="Kosongkan untuk auto-detect",
-        help="Nama kolom yang akan menjadi label sumbu X."
-    )
-
-    y_col = st.text_input(
-        "Kolom Sumbu Y (Nilai)",
-        value="",
-        placeholder="Kosongkan untuk auto-detect",
-        help="Nama kolom numerik yang akan diplot."
-    )
-
-    st.markdown("---")
     st.markdown(
-        "<small>🔒 Data hanya diproses di sesi lokal Anda dan tidak dikirim ke server manapun.</small>",
-        unsafe_allow_html=True
+        "<small> Data hanya diproses lokal dan tidak dikirim ke server manapun.</small>",
+        unsafe_allow_html=True,
     )
 
 
-# ─────────────────────────────────────────────
-# Area utama: 3 kolom untuk step indicator
-# ─────────────────────────────────────────────
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.info("**Step 1** · Upload CSV atau Excel")
-with col2:
-    st.info("**Step 2** · Preview Data & Grafik")
-with col3:
-    st.info("**Step 3** · Download File .pptx")
-
+# ─────────────────────────────────────────────────────────────────────────────
+# Step indicator
+# ─────────────────────────────────────────────────────────────────────────────
+c1, c2, c3 = st.columns(3)
+with c1: st.info("**Step 1** · Upload Excel Data")
+with c2: st.info("**Step 2** · Upload Gambar per Site")
+with c3: st.info("**Step 3** · Generate & Download .pptx")
 
 st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 
 
-# ─────────────────────────────────────────────
-# STEP 1: File Uploader
-# ─────────────────────────────────────────────
-st.markdown("### 📂 Upload File Data")
-
-uploaded_file = st.file_uploader(
-    label="Seret & lepas file di sini, atau klik untuk memilih",
-    type=["csv", "xlsx", "xls"],
-    help="Format yang didukung: CSV (.csv) atau Excel (.xlsx/.xls). Ukuran maksimal 200MB.",
-    label_visibility="visible"
+# ─────────────────────────────────────────────────────────────────────────────
+# STEP 1: Upload File
+# ─────────────────────────────────────────────────────────────────────────────
+st.markdown("###  Step 1 · Upload File Data")
+st.markdown(
+    "Upload file Excel dengan kolom: **NO · SITE ID · SITE NAME · FINDING · CITY · "
+    "PURPOSE HEADER · SOW · PLAN ACTION · SUPPORT NEEDED · GOALS · INCREAMENT PAYLOAD AND REVENUE · LONGITUDE · LATITUDE**"
 )
 
+uploaded_file = st.file_uploader(
+    "Seret & lepas file Excel di sini, atau klik untuk memilih",
+    type=["csv", "xlsx", "xls"],
+    help="Format: CSV (.csv) atau Excel (.xlsx/.xls). Setiap baris = 1 slide PPT.",
+)
 
-# ─────────────────────────────────────────────
-# Proses data setelah file diupload
-# ─────────────────────────────────────────────
+df_raw = None
+
 if uploaded_file is not None:
-
     filename_lower = uploaded_file.name.lower()
     is_excel = filename_lower.endswith((".xlsx", ".xls"))
 
-    # ── Baca & load data ───────────────────────────────────────────────
     if is_excel:
         file_bytes = uploaded_file.getvalue()
-
-        # Ekstrak info workbook (sheet names, chart detection)
         try:
             excel_info = get_excel_info(file_bytes)
         except Exception as e:
             st.error(f"❌ Gagal membaca file Excel: {e}")
             st.stop()
 
-        # ── Sheet Selector (tampilkan hanya jika lebih dari 1 sheet) ──
         if len(excel_info["sheet_names"]) > 1:
-            st.markdown("### 📊 Pilih Sheet Data")
+            st.markdown("###  Pilih Sheet Data")
             selected_sheet = st.selectbox(
                 "Workbook ini memiliki beberapa sheet. Pilih sheet yang berisi data:",
                 options=excel_info["sheet_names"],
                 index=excel_info["sheet_names"].index(excel_info["recommended_sheet"]),
-                help=(
-                    f"Sheet yang direkomendasikan: ‘{excel_info['recommended_sheet']}’ "
-                    f"(sheet pertama yang terdeteksi memiliki data)"
-                ),
             )
         else:
             selected_sheet = excel_info["sheet_names"][0]
 
-        # ── Banner jika workbook memiliki chart ───────────────────────────
-        if excel_info["has_charts"]:
-            st.info(
-                "💡 **Excel Anda memiliki chart!**  \n\n"
-                "Chart Excel tidak dapat diekstrak secara otomatis karena "
-                "tersimpan sebagai data vektor, bukan gambar.  \n"
-                "**Solusi:** Screenshot chart dari Excel Anda → simpan sebagai PNG/JPG → "
-                "upload di bagian **📎 Lampiran Gambar** di bawah.  \n"
-                "Gambar tersebut akan ditambahkan sebagai slide khusus di dalam PPTX."
-            )
-
-        # ── Load sheet yang dipilih ───────────────────────────────────
         try:
             df_raw = load_excel_sheet(file_bytes, selected_sheet)
         except Exception as e:
-            st.error(f"❌ Gagal membaca sheet ‘{selected_sheet}’: {e}")
+            st.error(f"❌ Gagal membaca sheet '{selected_sheet}': {e}")
             st.stop()
     else:
-        # ── CSV path (alur yang sudah ada) ─────────────────────────────
         try:
             df_raw = load_data(uploaded_file)
         except Exception as e:
             st.error(f"❌ Gagal membaca file: {e}")
             st.stop()
 
-    st.success(f"✅ File **{uploaded_file.name}** berhasil dimuat — "
-               f"**{df_raw.shape[0]:,} baris** × **{df_raw.shape[1]} kolom**")
-
-    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-
-    # ── Preview data (tabel penuh) ────────────────────────────
-    st.markdown("### 🔍 Data Mentah Lengkap")
-    with st.expander(
-        f"Tampilkan seluruh data ({df_raw.shape[0]:,} baris × {df_raw.shape[1]} kolom)",
-        expanded=True
-    ):
-        st.dataframe(
-            df_raw,
-            use_container_width=True,
-            height=400,
-        )
-
-    # ── Deteksi kolom otomatis ────────────────────────────────
-    # Gunakan input user jika tersedia, jika tidak auto-detect
-    x_col_resolved = x_col.strip() if x_col.strip() else None
-    y_col_resolved = y_col.strip() if y_col.strip() else None
-
-    # ── Agregasi data ─────────────────────────────────────────
-    try:
-        df_agg, x_col_final, y_col_final, agg_label = aggregate_data(
-            df_raw, x_col_resolved, y_col_resolved
-        )
-    except Exception as e:
-        st.error(f"❌ Gagal mengagregas data: {e}")
-        st.stop()
-
-    # ── STEP 2: Tampilkan agregasi & metrik ──────────────────
-    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-    st.markdown("### 📊 Hasil Agregasi & Statistik")
-
-    # Metric cards
-    m1, m2, m3, m4 = st.columns(4)
-    with m1:
-        st.metric("Total Baris", f"{df_raw.shape[0]:,}")
-    with m2:
-        st.metric(f"Total {y_col_final}", f"{df_agg[y_col_final].sum():,.2f}")
-    with m3:
-        st.metric(f"Rata-rata {y_col_final}", f"{df_agg[y_col_final].mean():,.2f}")
-    with m4:
-        st.metric(f"Nilai Tertinggi", f"{df_agg[y_col_final].max():,.2f}")
-
-    # Tampilkan tabel agregasi (seluruh baris)
-    with st.expander(
-        f"Tampilkan tabel agregasi ({len(df_agg):,} baris)",
-        expanded=True
-    ):
-        st.dataframe(df_agg, use_container_width=True, height=350)
-
-    # ── Generate bar chart ────────────────────────────────────
-    chart_buf = create_bar_chart(
-        df_agg=df_agg,
-        x_col=x_col_final,
-        y_col=y_col_final,
-        title=f"{agg_label} per {x_col_final}",
-        bar_color=chart_color,
+    st.success(
+        f"✅ **{uploaded_file.name}** berhasil dimuat — "
+        f"**{df_raw.shape[0]:,} baris** (site) × **{df_raw.shape[1]} kolom**"
     )
-
-    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-    st.markdown("### 📈 Visualisasi Bar Chart")
-    st.image(chart_buf, use_container_width=True, caption=f"{agg_label} per {x_col_final}")
-
-    # ── Generate bullet points summary ───────────────────────────────
-    bullets = generate_summary_bullets(
-        df_raw=df_raw,
-        df_agg=df_agg,
-        x_col=x_col_final,
-        y_col=y_col_final,
-        agg_label=agg_label,
-        report_title=report_title,
-    )
-
-    # ── LAMPIRAN GAMBAR (Opsional) ────────────────────────────────────
-    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-    st.markdown("### 📎 Lampiran Gambar (Opsional — Maks. 5 Gambar)")
     st.markdown(
-        "<small>Upload gambar atau screenshot chart Excel Anda. "
-        "Setiap gambar akan menjadi <strong>slide lampiran tersendiri</strong> "
-        "sebelum slide Penutup di dalam PPTX.</small>",
-        unsafe_allow_html=True,
+        f" Akan menghasilkan **{df_raw.shape[0]} slide data** + 1 Cover + 1 Penutup "
+        f"= **{df_raw.shape[0] + 2} slide** total."
     )
 
-    uploaded_images = st.file_uploader(
-        "Upload gambar (PNG / JPG / JPEG)",
-        type=["png", "jpg", "jpeg"],
-        accept_multiple_files=True,
-        key="user_image_uploader",
-        help="Maks. 5 gambar. Cocok untuk screenshot chart Excel, infografis, atau visual pendukung lainnya.",
+    # Preview tabel ringkas
+    with st.expander(" Preview data (10 baris pertama)", expanded=False):
+        # Konversi semua ke string agar aman untuk Arrow serialization
+        df_preview = df_raw.head(10).astype(str)
+        st.dataframe(df_preview, use_container_width=True)
+
+
+    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # STEP 2: Upload Gambar per Site
+    # ─────────────────────────────────────────────────────────────────────────
+    st.markdown("###  Step 2 · Upload Gambar per Site")
+    st.markdown(
+        "Untuk setiap site, upload gambar pendukung. "
+        "Setiap site membutuhkan **minimum 3 gambar** (Payload Chart, Maps/COVMO, Support Image), "
+        "dan **maksimal 5 gambar** (Payload Chart, Maps/COVMO, + 3 Support Images)."
     )
 
-    user_images = []
-    if uploaded_images:
-        images_to_use = uploaded_images[:5]
-        if len(uploaded_images) > 5:
-            st.warning(
-                f"⚠️ Hanya 5 gambar pertama yang akan digunakan "
-                f"(Anda mengupload {len(uploaded_images)} gambar)."
+    # Ambil daftar Site ID
+    col_site_id = COL_SITE_ID
+    if col_site_id not in df_raw.columns:
+        candidates = [c for c in df_raw.columns if "site" in c.lower() and "id" in c.lower()]
+        col_site_id = candidates[0] if candidates else df_raw.columns[0]
+        st.warning(f"⚠️ Kolom '{COL_SITE_ID}' tidak ditemukan. Menggunakan kolom '{col_site_id}' sebagai Site ID.")
+
+    # Sanitize site IDs: ganti NaN / kosong dengan index, pastikan unik
+    raw_ids = df_raw[col_site_id].tolist()
+    site_ids = []
+    seen = {}
+    for i, sid_raw in enumerate(raw_ids):
+        # Pastikan selalu string, bahkan jika nilai float NaN
+        sid = str(sid_raw).strip() if sid_raw is not None else ""
+        # Ganti NaN, kosong, atau 'nan' dengan fallback berbasis index
+        if not sid or sid.lower() in ("nan", "none", ""):
+            sid = f"site_{i+1}"
+        # Hindari duplikat key dengan menambahkan suffix
+        if sid in seen:
+            seen[sid] += 1
+            sid = f"{sid}_{seen[sid]}"
+        else:
+            seen[sid] = 0
+        site_ids.append(sid)
+
+
+    # Dict untuk menyimpan gambar per site: {site_id: [{bytes, label}, ...]}
+    site_images: dict = {}
+
+    # Pilih apakah ingin upload gambar per site atau skip
+    upload_mode = st.radio(
+        "Mode upload gambar:",
+        ["Upload gambar per site (direkomendasikan)", "Skip — generate tanpa gambar (placeholder)"],
+        index=0,
+        horizontal=True,
+    )
+
+    if upload_mode.startswith("Upload"):
+        # Bisa expand tiap site atau pilih site tertentu
+        st.markdown("---")
+        selected_sites = st.multiselect(
+            "Pilih site yang ingin diisi gambarnya (kosongkan untuk semua):",
+            options=site_ids,
+            default=[],
+            help="Jika dikosongkan, form upload akan ditampilkan untuk semua site.",
+        )
+        sites_to_show = selected_sites if selected_sites else site_ids[:10]  # Batasi 10 pertama
+
+        if not selected_sites and len(site_ids) > 10:
+            st.info(
+                f"⚠️ Menampilkan form upload untuk 10 site pertama dari {len(site_ids)} site. "
+                "Gunakan filter di atas untuk memilih site tertentu."
             )
 
-        st.markdown(
-            f"**{len(images_to_use)} gambar** siap digunakan — "
-            "berikan **judul** dan **keterangan singkat** untuk setiap gambar:"
-        )
-        for i, img_file in enumerate(images_to_use):
-            img_bytes = img_file.getvalue()
-            st.markdown(f"---\n**Gambar {i + 1}** — `{img_file.name}`")
-            col_prev, col_form = st.columns([1, 2])
-            with col_prev:
-                st.image(img_bytes, use_container_width=True)
-                side = "🖼️ Gambar kiri · 📝 Teks kanan" if i % 2 == 0 else "📝 Teks kiri · 🖼️ Gambar kanan"
-                st.caption(f"🔄 Layout di slide: {side}")
-            with col_form:
-                default_cap = (
-                    img_file.name.rsplit(".", 1)[0]
-                    .replace("_", " ")
-                    .replace("-", " ")
-                )
-                caption = st.text_input(
-                    f"📝 Judul Gambar {i + 1}",
-                    value=default_cap,
-                    key=f"img_caption_{i}",
-                    placeholder="Contoh: Chart Penjualan Q1 2024",
-                )
-                description = st.text_area(
-                    f"📋 Keterangan Singkat Gambar {i + 1}",
-                    value="",
-                    key=f"img_desc_{i}",
-                    height=80,
-                    placeholder="Contoh: Penjualan Q1 naik 15% YoY, tertinggi di cluster Jabodetabek.",
-                )
-                st.caption(
-                    "📌 Judul tampil **bold** · Keterangan singkat (1–2 kalimat) muncul di panel merah."
-                )
-            user_images.append({
-                "bytes": img_bytes,
-                "caption": caption,
-                "description": description,
-            })
+        for i, sid in enumerate(sites_to_show):
+            # Ambil nama site (berdasarkan index asli di site_ids)
+            orig_idx = site_ids.index(sid)
+            site_name_col = COL_SITE_NAME
+            if site_name_col in df_raw.columns:
+                sname = str(df_raw.iloc[orig_idx][site_name_col]).strip()
+                site_label = f"{sid} — {sname}" if sname else sid
+            else:
+                site_label = str(sid)
 
-    # ── STEP 3: Generate & Download PPTX ─────────────────────
+            with st.expander(f" {site_label}", expanded=False):
+                col_a, col_b = st.columns([1, 1])
+
+                with col_a:
+                    st.markdown("**① Payload Site Surrounding** *(wajib)*")
+                    img_payload = st.file_uploader(
+                        "Upload chart payload",
+                        type=["png", "jpg", "jpeg"],
+                        key=f"payload_{sid}",
+                    )
+
+                    st.markdown("**② Maps Preview & COVMO** *(wajib)*")
+                    img_maps = st.file_uploader(
+                        "Upload maps/COVMO",
+                        type=["png", "jpg", "jpeg"],
+                        key=f"maps_{sid}",
+                    )
+
+                with col_b:
+                    st.markdown("**③–⑤ Support Images** *(min 1, maks 3)*")
+                    img_supports = st.file_uploader(
+                        "Upload support images (1–3 gambar)",
+                        type=["png", "jpg", "jpeg"],
+                        accept_multiple_files=True,
+                        key=f"support_{sid}",
+                    )
+
+                # Kumpulkan gambar site ini
+                imgs_this_site = []
+                if img_payload:
+                    imgs_this_site.append({"bytes": img_payload.getvalue(), "label": "Payload Site"})
+                if img_maps:
+                    imgs_this_site.append({"bytes": img_maps.getvalue(), "label": "Maps & COVMO"})
+                for si_img in (img_supports or [])[:3]:
+                    imgs_this_site.append({"bytes": si_img.getvalue(), "label": "Support"})
+
+                if imgs_this_site:
+                    site_images[sid] = imgs_this_site
+                    st.success(f"✅ {len(imgs_this_site)} gambar siap untuk site ini.")
+                else:
+                    st.caption("Belum ada gambar untuk site ini — akan menggunakan placeholder.")
+
     st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-    st.markdown("### 🚀 Generate & Download Laporan PowerPoint")
 
-    # Tombol generate
-    if st.button("⚡ Generate File .pptx Sekarang", type="primary", use_container_width=True):
+    # ─────────────────────────────────────────────────────────────────────────
+    # STEP 3: Generate & Download
+    # ─────────────────────────────────────────────────────────────────────────
+    st.markdown("###  Step 3 · Generate & Download Laporan PowerPoint")
 
+    if st.button(" Generate File .pptx Sekarang", type="primary", use_container_width=True):
         with st.spinner("Sedang membuat presentasi PowerPoint..."):
             try:
                 pptx_buf = generate_pptx(
@@ -452,78 +346,72 @@ if uploaded_file is not None:
                     subtitle=report_subtitle,
                     author=author_name,
                     report_date=report_date.strftime("%d %B %Y"),
-                    bullets=bullets,
-                    chart_buf=chart_buf,
-                    chart_title=f"{agg_label} per {x_col_final}",
-                    analysis_text=(
-                        f"Grafik menampilkan {agg_label.lower()} dari kolom "
-                        f"'{y_col_final}' berdasarkan '{x_col_final}'.\n\n"
-                        f"Nilai tertinggi: "
-                        f"{df_agg[y_col_final].max():,.2f} "
-                        f"({df_agg.loc[df_agg[y_col_final].idxmax(), x_col_final]}).\n\n"
-                        f"Nilai terendah: "
-                        f"{df_agg[y_col_final].min():,.2f} "
-                        f"({df_agg.loc[df_agg[y_col_final].idxmin(), x_col_final]}).\n\n"
-                        f"Rata-rata keseluruhan: "
-                        f"{df_agg[y_col_final].mean():,.2f}.\n\n"
-                        f"Total kategori: {len(df_agg)} · Total baris data: {df_raw.shape[0]:,}.\n\n"
-                        f"Tren ini dapat digunakan sebagai acuan perencanaan dan pengambilan keputusan strategis operasional jaringan Telkomsel."
-                    ),
                     df_raw=df_raw,
-                    x_col=x_col_final,
-                    y_col=y_col_final,
-                    user_images=user_images if user_images else None,
+                    site_images=site_images if site_images else {},
                 )
-                st.session_state["pptx_buf"] = pptx_buf
-                st.session_state["filename"] = (
-                    f"Laporan_{report_title.replace(' ', '_')}_{report_date.strftime('%Y%m%d')}.pptx"
+                st.session_state["pptx_buf"]  = pptx_buf
+                st.session_state["pptx_fname"] = (
+                    f"CoverageReport_{report_title.replace(' ', '_')}_"
+                    f"{report_date.strftime('%Y%m%d')}.pptx"
                 )
-                st.success("✅ File PowerPoint berhasil dibuat! Klik tombol Download di bawah.")
+                st.success(
+                    f"✅ File PowerPoint berhasil dibuat! "
+                    f"Total **{df_raw.shape[0] + 2} slide**. Klik tombol Download di bawah."
+                )
             except Exception as e:
                 st.error(f"❌ Gagal membuat PPTX: {e}")
+                import traceback
+                st.code(traceback.format_exc())
 
-    # Tampilkan tombol download jika file sudah digenerate
     if "pptx_buf" in st.session_state:
         st.download_button(
-            label="⬇️ Download File .pptx",
+            label="⬇ Download File .pptx",
             data=st.session_state["pptx_buf"],
-            file_name=st.session_state["filename"],
+            file_name=st.session_state["pptx_fname"],
             mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
             use_container_width=True,
         )
 
 else:
-    # ── Placeholder saat belum ada file ──────────────────────
+    # Placeholder belum ada file
     st.markdown("""
     <div style="
         text-align: center;
         padding: 4rem 2rem;
         background: linear-gradient(135deg, #0d1117, #161b22);
-        border: 1px dashed #30363d;
+        border: 1px dashed #CC0000;
         border-radius: 16px;
         color: #8b949e;
         margin-top: 1rem;
     ">
-        <div style="font-size: 4rem; margin-bottom: 1rem;">📁</div>
+        <div style="font-size: 4rem; margin-bottom: 1rem;">📡</div>
         <h3 style="color: #e6edf3; margin-bottom: 0.5rem;">Belum ada file yang diupload</h3>
-        <p>Upload file <strong>CSV</strong> atau <strong>Excel (.xlsx / .xls)</strong> Anda di atas untuk memulai.</p>
+        <p>Upload file <strong>Excel (.xlsx / .xls)</strong> atau <strong>CSV</strong> di atas untuk memulai.</p>
         <p style="font-size:0.85rem; margin-top:1rem;">
-            💡 <em>Contoh: data penjualan bulanan, laporan keuangan, atau data operasional lainnya.</em>
+             <em>Kolom yang dibutuhkan: NO · SITE ID · SITE NAME · FINDING · CITY ·
+            PURPOSE HEADER · SOW · PLAN ACTION · SUPPORT NEEDED · GOALS · INCREAMENT PAYLOAD AND REVENUE</em>
         </p>
     </div>
     """, unsafe_allow_html=True)
 
-    # Tampilkan contoh format data yang didukung
-    with st.expander("📖 Lihat contoh format data yang didukung"):
-        st.markdown("**Format CSV:**")
-        st.code("""bulan,penjualan,target
-Januari,120000,100000
-Februari,98000,100000
-Maret,145000,120000
-April,132000,120000""", language="csv")
-        st.markdown("**Format Excel (.xlsx):**")
+    with st.expander(" Format Excel yang dibutuhkan"):
+        st.markdown("**Struktur kolom:**")
+        st.dataframe(pd.DataFrame([{
+            "NO": "1",
+            "SITE ID": "BDG212",
+            "SITE NAME": "BDG212_SETRAMURNI-DMT",
+            "FINDING": "Nearest Site BDG212_SETRAMURNI-DMT\nFrom BDG212 to Red Coverage descending contour",
+            "CITY": "Bandung",
+            "PURPOSE HEADER": "Install EM Under BDG212 SETRAMURNI",
+            "SOW": "Purpose Easy macro 9 Meter -6.869313, 107.578078",
+            "PLAN ACTION": "Propose Easy Macro 9 m -6.869313, 107.578078",
+            "SUPPORT NEEDED": "Material AAU dual Band\nKabel Power + KWH\nTiang Telom 9 m\nInstallation & integration",
+            "GOALS": "Improvement payload & Revenue area perumahan Setramurni\nImprovement Red Coverage Kec Sukasari",
+            "INCREAMENT PAYLOAD AND REVENUE": "Payload: 300 GB (Monthly)\nRevneue: 30 Jt (Monthly)",
+            "LONGITUDE": "107.578078",
+            "LATITUDE": "-6.869313",
+        }]), use_container_width=True)
         st.info(
-            "Buka Excel → isi data dengan baris pertama sebagai header kolom → simpan sebagai .xlsx.  \n"
-            "Jika memiliki beberapa sheet, Anda bisa memilih sheet mana yang akan diproses."
+            " Setiap baris = 1 site = 1 slide PPT.  \n"
+            "Untuk field berisi beberapa poin, pisahkan dengan baris baru (Enter di Excel)."
         )
-        st.info("💡 Pastikan baris pertama adalah **header/nama kolom**, dan minimal ada satu kolom berisi angka.")

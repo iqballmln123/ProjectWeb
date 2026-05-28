@@ -338,13 +338,44 @@ def get_excel_info(file_bytes: bytes) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 # FUNGSI: load_excel_sheet
 # ─────────────────────────────────────────────────────────────────────────────
+# Kolom penting yang HARUS ada di header baris data
+_REQUIRED_COLS = {
+    "SITE ID", "SITE NAME", "FINDING", "PLAN ACTION",
+    "SUPPORT NEEDED", "GOALS",
+}
+
+
+def _find_header_row(file_bytes: bytes, sheet_name: str, max_scan: int = 10) -> int:
+    """
+    Scan 10 baris pertama untuk menemukan baris yang berisi header kolom.
+    Cocok untuk Excel yang punya baris judul / merged cell di atas header.
+
+    Returns:
+    --------
+    int — nomor baris (0-indexed) yang digunakan sebagai header pandas.
+    """
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True, read_only=True)
+    ws = wb[sheet_name]
+
+    required_upper = {c.upper() for c in _REQUIRED_COLS}
+
+    for row_idx, row in enumerate(ws.iter_rows(max_row=max_scan, values_only=True)):
+        row_vals = {str(v).strip().upper() for v in row if v is not None}
+        # Jika row ini mengandung ≥ 2 kolom yang dikenali → ini header
+        if len(row_vals & required_upper) >= 2:
+            wb.close()
+            return row_idx  # 0-indexed, langsung pakai di header=
+
+    wb.close()
+    return 0  # Fallback: baris pertama
+
+
 def load_excel_sheet(file_bytes: bytes, sheet_name: str) -> pd.DataFrame:
     """
-    Membaca sheet tertentu dari file Excel ke dalam Pandas DataFrame,
-    dengan proses cleaning yang identik dengan load_data() untuk CSV:
-    - Strip spasi di nama kolom
-    - Hapus kolom 'Unnamed: X'
-    - Konversi string numerik ke tipe angka
+    Membaca sheet tertentu dari file Excel ke dalam Pandas DataFrame.
+    Secara otomatis mendeteksi baris header yang benar, termasuk
+    saat ada baris judul / merged cell di atas kolom header.
 
     Parameter:
     ----------
@@ -357,11 +388,15 @@ def load_excel_sheet(file_bytes: bytes, sheet_name: str) -> pd.DataFrame:
     --------
     pd.DataFrame
     """
+    # Deteksi baris header yang benar
+    header_row = _find_header_row(file_bytes, sheet_name)
+
     try:
         df = pd.read_excel(
             io.BytesIO(file_bytes),
             sheet_name=sheet_name,
             engine="openpyxl",
+            header=header_row,   # ← otomatis skip baris judul di atas
         )
     except Exception as e:
         raise ValueError(f"Gagal membaca sheet '{sheet_name}': {e}")
@@ -369,20 +404,23 @@ def load_excel_sheet(file_bytes: bytes, sheet_name: str) -> pd.DataFrame:
     if df.empty:
         raise ValueError(f"Sheet '{sheet_name}' tidak mengandung data.")
 
-    # ── Cleaning identik dengan CSV ───────────────────────────────────────────
+    # ── Cleaning ──────────────────────────────────────────────────────────────
     # 1. Strip spasi di nama kolom
     df.columns = [str(c).strip() for c in df.columns]
 
-    # 2. Hapus kolom indeks otomatis 'Unnamed: X'
+    # 2. Hapus kolom 'Unnamed: X' (sisa kolom kosong)
     unnamed_cols = [c for c in df.columns if c.startswith("Unnamed:")]
     if unnamed_cols:
         df = df.drop(columns=unnamed_cols)
 
-    # 3. Konversi kolom string → numerik jika memungkinkan
+    # 3. Hapus baris yang SEMUA nilainya NaN (baris kosong)
+    df = df.dropna(how="all").reset_index(drop=True)
+
+    # 4. Semua kolom → string agar konsisten & aman untuk PPT generator
+    #    (angka tetap terbaca, NaN jadi "")
     for col in df.columns:
-        try:
-            df[col] = pd.to_numeric(df[col], errors="raise")
-        except Exception:
-            pass
+        df[col] = df[col].astype(str).str.strip()
+        # Bersihkan literal "nan" hasil astype dari NaN
+        df[col] = df[col].replace({"nan": "", "None": "", "NaT": ""})
 
     return df
