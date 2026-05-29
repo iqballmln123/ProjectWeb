@@ -43,9 +43,10 @@ from PIL import Image as PILImage
 COLOR_RED        = RGBColor(0xCC, 0x00, 0x00)   # #CC0000 — Merah Telkomsel
 COLOR_RED_DARK   = RGBColor(0x99, 0x00, 0x00)   # #990000 — Merah gelap
 COLOR_RED_LIGHT  = RGBColor(0xFF, 0x33, 0x33)   # #FF3333 — Merah terang
+COLOR_RED_MAROON = RGBColor(0xCC, 0x00, 0x33)   # #CC0033 — Merah maroon (sub-header)
 COLOR_WHITE      = RGBColor(0xFF, 0xFF, 0xFF)
 COLOR_BLACK      = RGBColor(0x00, 0x00, 0x00)
-COLOR_DARK_NAVY  = RGBColor(0x1A, 0x1A, 0x2E)   # Header gelap
+COLOR_DARK_NAVY  = RGBColor(0x1B, 0x2A, 0x4A)   # #1B2A4A — Blue navy gelap (header)
 COLOR_GRAY_BG    = RGBColor(0xF5, 0xF5, 0xF5)   # Background abu terang
 COLOR_GRAY_MID   = RGBColor(0xAA, 0xAA, 0xAA)
 COLOR_GOLD       = RGBColor(0xFF, 0xC4, 0x00)   # Aksen emas
@@ -408,11 +409,10 @@ def _slide_data_site(
     _fill(bg, COLOR_WHITE)
 
     # ── KONSTANTA LAYOUT ────────────────────────────────────────────────────
-    HEADER_H  = 0.52   # tinggi header
-    SUBHDR_H  = 0.30   # tinggi sub-header
+    HEADER_H  = 0.82   # tinggi header gabungan (navy bar sepenuhnya)
     FOOTER_H  = 0.22   # tinggi footer
-    CONTENT_T = HEADER_H + SUBHDR_H   # 0.82 — awal area konten
-    CONTENT_B = 7.5 - FOOTER_H        # 7.28 — akhir area konten
+    CONTENT_T = HEADER_H          # 0.82 — awal area konten
+    CONTENT_B = 7.5 - FOOTER_H   # 7.28 — akhir area konten
     CONTENT_H = CONTENT_B - CONTENT_T  # 6.46"
 
     LEFT_W    = 4.55   # lebar panel kiri (5 seksi)
@@ -432,43 +432,44 @@ def _slide_data_site(
 
     LABEL_H = 0.24  # tinggi label seksi kanan (⑥ dan ⑦)
 
-    # ── HEADER BAR ─────────────────────────────────────────────────────────
+    # ── HEADER BAR — satu bar navy biru gelap ─────────────────────────────
+    # Background navy penuh
     hdr_bg = slide.shapes.add_shape(1, 0, 0, SLIDE_W, Inches(HEADER_H))
-    _fill(hdr_bg, COLOR_WHITE)
+    _fill(hdr_bg, COLOR_DARK_NAVY)
 
-    # Stripe merah tipis di bawah header
-    hdr_stripe = slide.shapes.add_shape(
-        1, 0, Inches(HEADER_H - 0.05), SLIDE_W, Inches(0.05)
-    )
-    _fill(hdr_stripe, COLOR_RED)
+    # Data teks
+    purpose      = str(row.get(COL_PURPOSE, "")).strip()
+    site_name    = str(row.get(COL_SITE_NAME, "")).strip()
+    city         = str(row.get(COL_CITY, "")).strip()
+    sow          = str(row.get(COL_SOW, "")).strip()
+    plan_action  = str(row.get(COL_PLAN_ACTION, "")).strip().split("\n")[0]  # baris pertama saja
 
-    # Judul: PURPOSE HEADER (bisa berisi "A | B" atau hanya satu teks)
-    purpose   = str(row.get(COL_PURPOSE, "")).strip()
-    site_name = str(row.get(COL_SITE_NAME, "")).strip()
-    # Jika PURPOSE kosong, fallback ke SITE NAME
-    header_title = purpose if purpose else site_name
+    # Baris 1: "PURPOSE HEADER | SOW" — putih, bold
+    if purpose and sow:
+        header_line1 = f"{purpose}  |  {sow}"
+    elif purpose:
+        header_line1 = purpose
+    else:
+        header_line1 = site_name
 
-    txb_hdr = _txb(slide, 0.15, 0.05, 10.8, HEADER_H - 0.1)
-    txb_hdr.text_frame.word_wrap = True
-    _txt(txb_hdr.text_frame, header_title, 14, bold=True, color=COLOR_BLACK)
+    # Baris 2: "[City] PLAN ACTION" — merah maroon, italic
+    header_line2 = f"[{city}]  {plan_action}" if plan_action else f"[{city}]"
+
+    # Textbox baris 1 (putih bold)
+    txb_line1 = _txb(slide, 0.18, 0.07, 10.6, 0.44)
+    txb_line1.text_frame.word_wrap = True
+    _txt(txb_line1.text_frame, header_line1, 13, bold=True, color=COLOR_WHITE)
+
+    # Textbox baris 2 (merah maroon, italic)
+    txb_line2 = _txb(slide, 0.18, 0.50, 10.6, 0.28)
+    txb_line2.text_frame.word_wrap = False
+    _txt(txb_line2.text_frame, header_line2, 9.5, bold=False, italic=True,
+         color=COLOR_RED_MAROON)
 
     # Logo "Telkomsel" pojok kanan atas (merah, italic, Times New Roman)
-    txb_logo = _txb(slide, 11.0, 0.06, 2.2, HEADER_H - 0.12)
-    _txt(txb_logo.text_frame, "Telkomsel", 18, bold=True, italic=True,
+    txb_logo = _txb(slide, 10.85, 0.08, 2.35, 0.42)
+    _txt(txb_logo.text_frame, "Telkomsel", 20, bold=True, italic=True,
          color=COLOR_RED, align=PP_ALIGN.RIGHT, font="Times New Roman")
-
-    # ── SUB-HEADER BAR (navy gelap + teks kuning/emas) ───────────────────
-    subhdr_bg = slide.shapes.add_shape(
-        1, 0, Inches(HEADER_H), SLIDE_W, Inches(SUBHDR_H)
-    )
-    _fill(subhdr_bg, COLOR_DARK_NAVY)
-
-    city    = str(row.get(COL_CITY, "")).strip()
-    sow     = str(row.get(COL_SOW, "")).strip()
-    sub_txt = f"[{city}]  {sow}" if sow else f"[{city}]"
-
-    txb_sub = _txb(slide, 0.15, HEADER_H + 0.05, 13.0, SUBHDR_H - 0.06)
-    _txt(txb_sub.text_frame, sub_txt, 9.5, italic=True, color=COLOR_GOLD)
 
     # ── GARIS VERTIKAL PEMISAH KIRI-KANAN ───────────────────────────────
     vline_main = slide.shapes.add_shape(

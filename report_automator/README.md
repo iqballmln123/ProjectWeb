@@ -1,6 +1,6 @@
-# 📊 Report Automator
+# 📡 Telkomsel Coverage Report Automator
 
-Aplikasi automasi laporan berbasis **Streamlit** yang mengkonversi data CSV/JSON menjadi presentasi PowerPoint (.pptx) secara otomatis — lengkap dengan bar chart profesional dan executive summary.
+Aplikasi berbasis **Streamlit** untuk mengotomasi pembuatan laporan **Coverage Activity Report** Telkomsel dalam format PowerPoint (`.pptx`). Upload data Excel/CSV → preview per site → generate presentasi lengkap secara otomatis.
 
 ---
 
@@ -8,14 +8,14 @@ Aplikasi automasi laporan berbasis **Streamlit** yang mengkonversi data CSV/JSON
 
 ```
 report_automator/
-├── app.py                  # Entry point Streamlit
-├── data_processor.py       # Modul load, agregasi & ringkasan data
-├── chart_generator.py      # Modul pembuatan bar chart (Matplotlib)
+├── app.py                  # Entry point Streamlit (UI 3-step)
+├── data_processor.py       # Modul load & validasi data Excel/CSV
+├── chart_generator.py      # Modul pembuatan chart (Matplotlib)
 ├── ppt_generator.py        # Modul pembuatan file .pptx (python-pptx)
 ├── requirements.txt        # Dependensi Python
 └── sample_data/
-    ├── data_penjualan.csv  # Contoh data CSV (penjualan bulanan)
-    └── data_departemen.json # Contoh data JSON (anggaran per departemen)
+    ├── data_penjualan.csv              # Contoh data CSV sederhana
+    └── test_2_multi_kolom.csv          # Contoh data multi-kolom
 ```
 
 ---
@@ -43,30 +43,69 @@ http://localhost:8501
 
 | Fitur | Detail |
 |-------|--------|
-| **File Uploader** | Mendukung CSV (berbagai delimiter & encoding) dan JSON |
-| **Auto-detect Kolom** | Deteksi otomatis kolom kategori (X) dan numerik (Y) |
-| **Agregasi Cerdas** | SUM otomatis jika ada duplikasi; passthrough jika data sudah unik |
-| **Bar Chart Korporat** | Minimalis, gradient opacity, value labels, watermark |
-| **PPT 3 Slide** | Title → Executive Summary → Visualisasi + Analisis |
-| **Download Langsung** | Tombol download file .pptx dari dalam UI |
+| **Upload Excel / CSV** | Mendukung `.xlsx`, `.xls`, dan `.csv` |
+| **Multi-sheet Excel** | Deteksi otomatis sheet yang direkomendasikan |
+| **Upload Gambar per Site** | Payload Chart, Maps/COVMO, hingga 3 Support Images |
+| **Preview Data** | Tabel preview 10 baris pertama sebelum generate |
+| **Header Profesional** | Bar navy dengan 2 baris: PURPOSE\|SOW (putih) + \[City\] Plan Action (merah maroon) |
+| **Logo Telkomsel** | Otomatis tampil di pojok kanan atas setiap slide |
+| **Slide Cover & Penutup** | Slide pertama dan terakhir otomatis digenerate |
+| **Download .pptx** | Tombol download langsung dari UI |
 
 ---
 
-## 📋 Format Data yang Didukung
+## 📋 Format Kolom Excel yang Dibutuhkan
 
-### CSV
-```csv
-bulan,penjualan,target
-Januari,125000000,100000000
-Februari,98000000,100000000
+Setiap baris = 1 site = 1 slide PPT.
+
+| Kolom | Keterangan |
+|-------|-----------|
+| `NO` | Nomor urut |
+| `SITE ID` | ID unik site (e.g. `BDG212`) |
+| `SITE NAME` | Nama site (e.g. `BDG212_SETRAMURNI-DMT`) |
+| `FINDING` | Temuan di lapangan (bisa multi-baris) |
+| `CITY` | Kota / area (tampil di header baris merah) |
+| `PURPOSE HEADER` | Judul tujuan (tampil di header baris putih) |
+| `SOW` | Scope of Work (tampil di header baris putih, setelah PURPOSE) |
+| `PLAN ACTION` | Rencana tindakan (tampil di header baris merah & section ②) |
+| `SUPPORT NEEDED` | Kebutuhan dukungan (material, dll.) |
+| `GOALS` | Target hasil |
+| `INCREAMENT PAYLOAD AND REVENUE` | Estimasi peningkatan payload & revenue |
+| `LONGITUDE` | Koordinat bujur site |
+| `LATITUDE` | Koordinat lintang site |
+
+> Untuk field dengan beberapa poin, pisahkan dengan baris baru (Enter di Excel).
+
+---
+
+## 🖼️ Struktur Slide yang Dihasilkan
+
+```
+Slide 1        : Cover (Judul, Sub-judul, Pembuat, Tanggal)
+Slide 2..N     : Satu slide per baris data (site)
+Slide terakhir : Penutup
 ```
 
-### JSON (Array of Objects)
-```json
-[
-  {"departemen": "Engineering", "anggaran": 2500000000},
-  {"departemen": "Marketing", "anggaran": 1800000000}
-]
+### Layout Slide Data (per Site)
+
+```
+┌──────────────────────────────────────────────── HEADER NAVY ──────────────────────────────────── [Telkomsel] ─┐
+│  PURPOSE HEADER  |  SOW                                                                     (putih bold)       │
+│  [City]  Plan Action baris pertama                                                         (merah maroon)      │
+├───────────────────────┬───────────────────────────────────┬──────────────────────────────────────────────────┤
+│ ① FINDING             │  ⑥ PAYLOAD site Surrounding       │                                                  │
+│   • bullet            │     [chart image]                 │  [Support Image 1]                               │
+│ ② PLAN ACTION         ├───────────────────────────────────┤                                                  │
+│   teks                │  ⑦ MAPS Preview & COVMO           ├──────────────────────────────────────────────────┤
+│ ③ SUPPORT NEEDED      │     [maps/COVMO image]            │  [Support Image 2]  │  [Support Image 3]         │
+│   • bullet            │                                   │                     │                            │
+│ ④ GOALS               │                                   │                     │                            │
+│   - bullet            │                                   │                     │                            │
+│ ⑤ INCREMENT P&R       │                                   │                     │                            │
+│   • bullet            │                                   │                     │                            │
+└───────────────────────┴───────────────────────────────────┴──────────────────────────────────────────────────┘
+│                                FOOTER (navy)                                                                  │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -74,21 +113,34 @@ Februari,98000000,100000000
 ## 🏗️ Arsitektur Modul
 
 ```
-app.py
-  ├── data_processor.load_data()          → Baca CSV/JSON → DataFrame
-  ├── data_processor.aggregate_data()     → Agregasi SUM per kategori
-  ├── data_processor.generate_summary_bullets() → Bullet points statistik
-  ├── chart_generator.create_bar_chart()  → PNG bytes bar chart
-  └── ppt_generator.generate_pptx()      → .pptx bytes (3 slide)
+app.py  (UI 3-step)
+  ├── data_processor.get_excel_info()     → Info sheet & rekomendasi
+  ├── data_processor.load_excel_sheet()   → Baca sheet tertentu → DataFrame
+  ├── data_processor.load_data()          → Baca CSV → DataFrame
+  └── ppt_generator.generate_pptx()      → .pptx bytes
+        ├── _slide_cover()               → Slide 1 (Cover)
+        ├── _slide_data_site()           → Slide per site (2..N)
+        └── _slide_penutup()             → Slide terakhir (Penutup)
 ```
 
 ---
 
 ## ⚙️ Konfigurasi (Sidebar)
 
-- **Judul Laporan** — Tampil di Slide 1
-- **Sub-judul / Departemen** — Tampil di bawah judul
-- **Nama Pembuat** — Tercantum di slide
-- **Tanggal Laporan** — Otomatis dari hari ini, bisa diubah
-- **Warna Batang Chart** — Color picker bebas
-- **Kolom X/Y** — Nama kolom custom atau kosongkan untuk auto-detect
+| Setting | Keterangan |
+|---------|-----------|
+| **Judul Laporan** | Tampil di Slide Cover (default: *Tracking Activity NOP 2026*) |
+| **Sub-judul / Departemen** | Sub-teks di bawah judul (default: *Divisi Network Operation*) |
+| **Nama Pembuat** | Nama tim / individu pembuat laporan |
+| **Tanggal Laporan** | Otomatis hari ini, bisa diubah manual |
+
+---
+
+## 🎨 Desain Header Slide
+
+| Elemen | Konten | Style |
+|--------|--------|-------|
+| Background | Seluruh header bar | Navy biru gelap `#1B2A4A` |
+| Baris 1 | `PURPOSE HEADER  \|  SOW` | Putih, bold, 13pt |
+| Baris 2 | `[City]  Plan Action` | Merah maroon, italic, 9.5pt |
+| Logo | `Telkomsel` pojok kanan | Merah, bold italic, Times New Roman, 20pt |
