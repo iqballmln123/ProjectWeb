@@ -113,7 +113,7 @@ def _txt(
     italic: bool = False,
     color: RGBColor = COLOR_BLACK,
     align=PP_ALIGN.LEFT,
-    font: str = "Calibri",
+    font: str = "Times New Roman",
 ):
     """Set teks di text frame (clear dulu)."""
     tf.clear()
@@ -135,7 +135,7 @@ def _txt_multiline(
     bold: bool = False,
     color: RGBColor = COLOR_BLACK,
     bullet: bool = False,
-    font: str = "Calibri",
+    font: str = "Times New Roman",
 ):
     """Set multi-baris teks di text frame."""
     tf.clear()
@@ -226,7 +226,7 @@ def _slide_1_cover(prs, title: str, subtitle: str, author: str, report_date: str
 
     # Logo teks kiri
     txb = _txb(slide, 0.5, 0.3, 5.5, 0.75)
-    _txt(txb.text_frame, "TELKOMSEL", 32, bold=True, color=COLOR_WHITE, font="Calibri")
+    _txt(txb.text_frame, "TELKOMSEL", 32, bold=True, color=COLOR_WHITE, font="Times New Roman")
 
     txb_tag = _txb(slide, 0.5, 0.98, 6.0, 0.35)
     _txt(txb_tag.text_frame, "The Biggest & Most Innovative Digital Telco of Indonesia",
@@ -253,10 +253,10 @@ def _slide_1_cover(prs, title: str, subtitle: str, author: str, report_date: str
     _txt(txb_b.text_frame, "▶  LAPORAN RESMI — INTERNAL USE ONLY", 9, bold=True, color=COLOR_WHITE)
 
     info_items = [
-        ("📅  Tanggal Laporan", report_date),
-        ("👤  Disusun Oleh", author),
-        ("🏢  Unit Kerja", subtitle),
-        ("📊  Jenis Laporan", "Coverage Activity Report"),
+        ("Tanggal Laporan", report_date),
+        ("Disusun Oleh", author),
+        ("Unit Kerja", subtitle),
+        ("Jenis Laporan", "Coverage Activity Report"),
     ]
     y_info = 1.65
     for label, val in info_items:
@@ -312,7 +312,7 @@ def _draw_section_label(slide, num: int, label: str,
 def _draw_content_area(slide, lines: List[str],
                        left: float, top: float,
                        width: float, height: float,
-                       font_size: float = 8.5,
+                       font_size: float = 18,
                        bullet: bool = True):
     """
     Gambar area konten teks (putih/abu muda) dengan bullet points.
@@ -360,7 +360,7 @@ def _draw_placeholder(slide, x: float, y: float, w: float, h: float, text: str):
     ph = slide.shapes.add_shape(1, Inches(x), Inches(y), Inches(w), Inches(h))
     _fill(ph, RGBColor(0xCC, 0xCC, 0xCC))
     txb = _txb(slide, x + 0.2, y + h / 2 - 0.2, w - 0.4, 0.4)
-    _txt(txb.text_frame, text, 9, italic=True,
+    _txt(txb.text_frame, text, 12, italic=True,
          color=COLOR_GRAY_MID, align=PP_ALIGN.CENTER)
 
 
@@ -576,8 +576,7 @@ def _slide_data_site(
 
         txb_c = _txb(slide, 0.15, y_cur + 0.03, LEFT_W - 0.22, sec_h - 0.05)
         txb_c.text_frame.word_wrap = True
-        prefix = "• " if sec["bullet"] else "- "
-        _txt_multiline(txb_c.text_frame, sec["content"], 7.5,
+        _txt_multiline(txb_c.text_frame, sec["content"], 12,
                        color=COLOR_BLACK, bullet=sec["bullet"])
 
         y_cur += sec_h + SEC_PAD
@@ -758,7 +757,7 @@ def _slide_closing(prs, author: str, report_date: str, report_title: str,
     # Kiri: pesan penutup
     txb_logo = _txb(slide, 0.4, 0.35, 5.3, 0.75)
     _txt(txb_logo.text_frame, "TELKOMSEL", 30, bold=True,
-         color=COLOR_WHITE, font="Calibri")
+         color=COLOR_WHITE, font="Times New Roman")
 
     txb_tg = _txb(slide, 0.4, 1.0, 5.5, 0.32)
     _txt(txb_tg.text_frame, "The Biggest & Most Innovative Digital Telco of Indonesia",

@@ -275,7 +275,8 @@ def generate_summary_bullets(
         f"dengan nilai {min_val:,.2f}.",
 
         f"Rentang nilai antara tertinggi dan terendah adalah "
-        f"{max_val - min_val:,.2f} ({((max_val - min_val) / mean_val * 100):.1f}% dari rata-rata).",
+        f"{max_val - min_val:,.2f}"
+        + (f" ({((max_val - min_val) / mean_val * 100):.1f}% dari rata-rata)." if mean_val != 0 else "."),
 
         f"Data dalam laporan ini dapat digunakan sebagai dasar perencanaan "
         f"dan pengambilan keputusan strategis ke depannya.",
