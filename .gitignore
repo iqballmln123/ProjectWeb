@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment (JANGAN di-push ke GitHub)
+.venv/
+venv/
+env/
+ENV/
+
+# Streamlit — push config.toml tapi JANGAN push secrets.toml
+.streamlit/secrets.toml
+
+# Output files (tidak perlu di-push)
+*.pptx
+*.xlsx
+*.csv
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Environment variables (RAHASIA - jangan pernah push)
+.env
+*.env
