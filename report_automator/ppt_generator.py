@@ -29,6 +29,7 @@ Layout slide data (mirip gambar referensi):
 import io
 import math
 from typing import List, Optional, Dict, Any
+from lxml import etree
 import pandas as pd
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
@@ -353,15 +354,71 @@ def _draw_right_label(slide, num_str: str, label: str,
     _txt(txb_lbl.text_frame, label, 9, bold=True, color=COLOR_WHITE)
 
 
-def _draw_placeholder(slide, x: float, y: float, w: float, h: float, text: str):
+def _add_native_pic_placeholder(
+    slide,
+    idx: int,
+    left_in: float,
+    top_in: float,
+    w_in: float,
+    h_in: float,
+    label: str = "Double-click to insert image",
+):
     """
-    Gambar kotak placeholder abu-abu dengan teks italic tengah.
+    Inject native PowerPoint picture placeholder ke dalam slide.
+
+    User bisa langsung double-click frame ini di PowerPoint untuk
+    membuka file browser dan insert gambar — tanpa perlu edit XML manual.
+
+    Args:
+        slide   : slide object python-pptx
+        idx     : unique integer per placeholder dalam satu slide (mulai 10)
+        left_in : posisi kiri (inches)
+        top_in  : posisi atas (inches)
+        w_in    : lebar (inches)
+        h_in    : tinggi (inches)
+        label   : nama placeholder (muncul di panel Properties PowerPoint)
     """
-    ph = slide.shapes.add_shape(1, Inches(x), Inches(y), Inches(w), Inches(h))
-    _fill(ph, RGBColor(0xCC, 0xCC, 0xCC))
-    txb = _txb(slide, x + 0.2, y + h / 2 - 0.2, w - 0.4, 0.4)
-    _txt(txb.text_frame, text, 12, italic=True,
-         color=COLOR_GRAY_MID, align=PP_ALIGN.CENTER)
+    import xml.sax.saxutils as saxutils
+
+    spTree = slide.shapes._spTree
+
+    left        = int(Inches(left_in))
+    top         = int(Inches(top_in))
+    width       = int(Inches(w_in))
+    height      = int(Inches(h_in))
+    safe_label  = saxutils.escape(label)  # escape & < > untuk XML-safe
+
+    # XML element untuk native picture placeholder (type="pic")
+    # PowerPoint mengenali ini sebagai slot gambar yang bisa di-double-click
+    sp_xml = (
+        f'<p:sp '
+        f'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" '
+        f'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+        f'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        f'<p:nvSpPr>'
+        f'<p:cNvPr id="{idx + 200}" name="{safe_label}"/>'
+        f'<p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>'
+        f'<p:nvPr><p:ph type="pic" idx="{idx}"/></p:nvPr>'
+        f'</p:nvSpPr>'
+        f'<p:spPr>'
+        f'<a:xfrm><a:off x="{left}" y="{top}"/><a:ext cx="{width}" cy="{height}"/></a:xfrm>'
+        f'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>'
+        f'<a:solidFill><a:srgbClr val="F0F0F0"/></a:solidFill>'
+        f'<a:ln w="12700"><a:solidFill><a:srgbClr val="CC0000"/></a:solidFill>'
+        f'<a:prstDash val="dashDot"/></a:ln>'
+        f'</p:spPr>'
+        f'<p:txBody>'
+        f'<a:bodyPr anchor="ctr"/>'
+        f'<a:lstStyle/>'
+        f'<a:p><a:pPr algn="ctr"/>'
+        f'<a:r><a:rPr lang="id-ID" sz="1000" i="1" dirty="0"/>'
+        f'<a:t>\U0001f5bc\ufe0f  {safe_label}</a:t></a:r></a:p>'
+        f'</p:txBody>'
+        f'</p:sp>'
+    )
+
+    sp_element = etree.fromstring(sp_xml)
+    spTree.append(sp_element)
 
 
 def _slide_data_site(
@@ -607,9 +664,12 @@ def _slide_data_site(
             w_in=LEFT_SUB_W, h_in=img_payload_h, pad=0.05
         )
     else:
-        _draw_placeholder(slide, RIGHT_X, img_payload_top,
-                          LEFT_SUB_W, img_payload_h,
-                          "[ Upload Payload Site Chart ]")
+        _add_native_pic_placeholder(
+            slide, idx=10,
+            left_in=RIGHT_X, top_in=img_payload_top,
+            w_in=LEFT_SUB_W, h_in=img_payload_h,
+            label="Payload Site Surrounding",
+        )
 
     # ── LABEL ⑦ MAPS Preview & COVMO ──────────────────────────────────
     _draw_right_label(slide, "7", "MAPS Preview & COVMO",
@@ -626,9 +686,12 @@ def _slide_data_site(
             w_in=LEFT_SUB_W, h_in=img_maps_h, pad=0.05
         )
     else:
-        _draw_placeholder(slide, RIGHT_X, img_maps_top,
-                          LEFT_SUB_W, img_maps_h,
-                          "[ Upload Maps Preview & COVMO ]")
+        _add_native_pic_placeholder(
+            slide, idx=11,
+            left_in=RIGHT_X, top_in=img_maps_top,
+            w_in=LEFT_SUB_W, h_in=img_maps_h,
+            label="Maps Preview & COVMO",
+        )
 
     # ────────────────────────────────────────────────────────────────────
     # PANEL KANAN — SUB-KANAN: Support images
@@ -644,10 +707,13 @@ def _slide_data_site(
     n_sup = len(support_imgs)
 
     if n_sup == 0:
-        # Placeholder penuh
-        _draw_placeholder(slide, RIGHT_SUB_X, CONTENT_T,
-                          RIGHT_SUB_W, CONTENT_H,
-                          "[ Upload Support Images\n(min 1, maks 3) ]")
+        # Native picture placeholder penuh — user bisa double-click di PPT
+        _add_native_pic_placeholder(
+            slide, idx=12,
+            left_in=RIGHT_SUB_X, top_in=CONTENT_T,
+            w_in=RIGHT_SUB_W, h_in=CONTENT_H,
+            label="Support Image",
+        )
 
     elif n_sup == 1:
         # 1 gambar → isi penuh kolom sub-kanan
