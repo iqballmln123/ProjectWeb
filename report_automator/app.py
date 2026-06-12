@@ -37,55 +37,108 @@ def merge_pptx(buf_a: bytes, buf_b: bytes) -> bytes:
     """
     Gabungkan dua file PPTX (Proposal + Result) menjadi satu file.
 
-    Cara kerja:
-    - Buka kedua presentasi sebagai objek python-pptx
-    - Clone setiap slide dari buf_b ke dalam presentasi buf_a
-      menggunakan deep-copy XML + transfer relasi (rels)
-    - Kembalikan hasilnya sebagai bytes
+    Struktur hasil gabungan:
+    ┌─────────────────────────────────────────────────┐
+    │  Slide 1        : Cover (dari Proposal)          │
+    │  Slide 2..N     : Isi Proposal (tanpa cover &    │
+    │                   tanpa penutup)                 │
+    │  Slide N+1..M   : Isi Result (tanpa cover &      │
+    │                   tanpa penutup)                 │
+    │  Slide terakhir : Penutup (dari Result)          │
+    └─────────────────────────────────────────────────┘
 
     Best practice:
     - Tidak mengubah slide asli (non-destructive)
     - Menggunakan copy.deepcopy agar layout/theme tidak tertimpa
-    - Urutan: semua slide Proposal dulu, lalu semua slide Result
+    - Cover hanya 1x di awal, Penutup hanya 1x di akhir
     """
     import copy
     from pptx import Presentation
-    from pptx.util import Inches
     from lxml import etree
 
     # Buka kedua presentasi dari bytes
     prs_a = Presentation(io.BytesIO(buf_a))  # Proposal (akan jadi base)
     prs_b = Presentation(io.BytesIO(buf_b))  # Result (akan di-append)
 
-    # Referensi ke slide master presentasi A sebagai target
-    template_slide_layout = prs_a.slide_layouts[6]  # Blank layout
-
-    for slide_b in prs_b.slides:
-        # Tambah slide kosong ke presentasi A
-        new_slide = prs_a.slides.add_slide(template_slide_layout)
-
-        # Hapus semua elemen default dari slide kosong
+    def _clone_slide(prs_target, slide_src, layout):
+        """Clone satu slide dari sumber ke presentasi target."""
+        new_slide = prs_target.slides.add_slide(layout)
         sp_tree = new_slide.shapes._spTree
         for child in list(sp_tree):
             sp_tree.remove(child)
-
-        # Deep-copy seluruh spTree dari slide Result
-        src_sp_tree = slide_b.shapes._spTree
+        src_sp_tree = slide_src.shapes._spTree
         for child in src_sp_tree:
             sp_tree.append(copy.deepcopy(child))
-
-        # Transfer semua relasi (gambar, hyperlink, dll)
-        for rel in slide_b.part.rels.values():
+        for rel in slide_src.part.rels.values():
             if "image" in rel.reltype:
                 try:
                     img_part = rel.target_part
                     new_slide.part.relate_to(img_part, rel.reltype)
                 except Exception:
-                    pass  # Skip jika relasi sudah ada atau tidak bisa di-transfer
+                    pass
+
+    # Referensi layout blank
+    blank_layout = prs_a.slide_layouts[6]
+
+    slides_a = list(prs_a.slides)
+    slides_b = list(prs_b.slides)
+
+    # ── Langkah 1: Hapus slide PENUTUP dari Proposal (slide terakhir prs_a) ───
+    # Kita rebuild: ambil semua slide A kecuali terakhir, lalu tambahkan
+    # slide-slide Result (kecuali cover & penutupnya), lalu tambahkan penutup.
+    #
+    # python-pptx tidak mendukung penghapusan slide langsung, jadi kita
+    # buat presentasi baru dan clone ulang slide yang dibutuhkan.
+
+    prs_out = Presentation()
+    prs_out.slide_width  = prs_a.slide_width
+    prs_out.slide_height = prs_a.slide_height
+    blank_out = prs_out.slide_layouts[6]
+
+    def _clone_to(prs_target, slide_src, layout):
+        """Clone satu slide ke presentasi target."""
+        new_slide = prs_target.slides.add_slide(layout)
+        sp_tree = new_slide.shapes._spTree
+        for child in list(sp_tree):
+            sp_tree.remove(child)
+        for child in slide_src.shapes._spTree:
+            sp_tree.append(copy.deepcopy(child))
+        for rel in slide_src.part.rels.values():
+            if "image" in rel.reltype:
+                try:
+                    prs_target.slides[-1].part.relate_to(
+                        rel.target_part, rel.reltype
+                    )
+                except Exception:
+                    pass
+
+    # Clone semua slide Proposal KECUALI slide terakhir (Penutup Proposal)
+    proposal_content = slides_a[:-1] if len(slides_a) > 1 else slides_a
+    for sl in proposal_content:
+        _clone_to(prs_out, sl, blank_out)
+
+    # Clone slide Result: skip slide pertama (Cover) dan slide terakhir (Penutup Result)
+    # Simpan slide penutup Result untuk ditambahkan di akhir
+    if len(slides_b) > 2:
+        result_content = slides_b[1:-1]   # isi materi Result
+        result_closing = slides_b[-1]     # Penutup Result
+    elif len(slides_b) == 2:
+        result_content = []               # hanya Cover + Penutup, tidak ada isi
+        result_closing = slides_b[-1]
+    else:
+        result_content = []
+        result_closing = slides_b[-1] if slides_b else None
+
+    for sl in result_content:
+        _clone_to(prs_out, sl, blank_out)
+
+    # Tambahkan Penutup (dari Result) sebagai slide terakhir
+    if result_closing is not None:
+        _clone_to(prs_out, result_closing, blank_out)
 
     # Simpan ke buffer bytes
     out_buf = io.BytesIO()
-    prs_a.save(out_buf)
+    prs_out.save(out_buf)
     out_buf.seek(0)
     return out_buf.getvalue()
 
@@ -733,7 +786,7 @@ if uploaded_file is not None:
     # ── Download Gabungan (Proposal + Result) — selalu tampil jika ada Result
     if df_result is not None:
         st.divider()
-        st.markdown("#### 🗂️ · Download Gabungan (Proposal + Result)")
+        st.markdown("####  · Download Gabungan (Proposal + Result)")
         st.caption(
             "Generate **keduanya sekaligus** dalam satu klik, atau download "
             "masing-masing secara terpisah dari kolom di atas."
@@ -741,7 +794,7 @@ if uploaded_file is not None:
 
         # Tombol "Generate Semua" — otomatis generate Proposal + Result + merge
         if st.button(
-            "⚡ Generate Semua & Gabungkan (Proposal + Result)",
+            " Generate Semua & Gabungkan (Proposal + Result)",
             type="primary",
             use_container_width=True,
             key="btn_gen_all",
@@ -790,16 +843,19 @@ if uploaded_file is not None:
                     st.session_state["pptx_combined_buf"] = combined_buf
                     st.session_state["pptx_combined_fname"] = combined_fname
 
-                n_proposal = df_proposal.shape[0] + 2
-                n_result   = df_result.shape[0] + 2
+                n_proposal_data = df_proposal.shape[0]   # hanya slide data
+                n_result_data   = df_result.shape[0]      # hanya slide data
+                # Gabungan: 1 Cover + data Proposal + data Result + 1 Penutup
+                n_combined = 1 + n_proposal_data + n_result_data + 1
                 st.success(
                     f"✅ Semua berhasil dibuat! "
-                    f"Total **{n_proposal + n_result} slide** gabungan "
-                    f"({n_proposal} Proposal + {n_result} Result). "
+                    f"Total **{n_combined} slide** gabungan "
+                    f"(1 Cover + {n_proposal_data} slide Proposal + "
+                    f"{n_result_data} slide Result + 1 Penutup). "
                     f"Download tersedia di bawah."
                 )
             except Exception as e:
-                st.error(f"❌ Gagal: {e}")
+                st.error(f"! Gagal: {e}")
                 import traceback
                 st.code(traceback.format_exc())
 
@@ -809,7 +865,7 @@ if uploaded_file is not None:
             and "pptx_result_buf" in st.session_state
         )
         if st.button(
-            "⚙️ Gabungkan yang Sudah Di-generate",
+            "! Gabungkan yang Sudah Di-generate",
             type="secondary",
             use_container_width=True,
             key="btn_gen_combined",
@@ -828,22 +884,24 @@ if uploaded_file is not None:
                         f"Combined_{report_title.replace(' ', '_')}_"
                         f"{report_date.strftime('%Y%m%d')}.pptx"
                     )
-                    n_proposal = df_proposal.shape[0] + 2
-                    n_result   = df_result.shape[0] + 2
+                    n_proposal_data = df_proposal.shape[0]
+                    n_result_data   = df_result.shape[0]
+                    n_combined = 1 + n_proposal_data + n_result_data + 1
                     st.success(
                         f"✅ Berhasil digabungkan! "
-                        f"Total **{n_proposal + n_result} slide** "
-                        f"({n_proposal} Proposal + {n_result} Result)."
+                        f"Total **{n_combined} slide** gabungan "
+                        f"(1 Cover + {n_proposal_data} slide Proposal + "
+                        f"{n_result_data} slide Result + 1 Penutup)."
                     )
                 except Exception as e:
-                    st.error(f"❌ Gagal menggabungkan: {e}")
+                    st.error(f"! Gagal menggabungkan: {e}")
                     import traceback
                     st.code(traceback.format_exc())
 
         # Download gabungan — muncul setelah salah satu tombol di atas berhasil
         if "pptx_combined_buf" in st.session_state:
             st.download_button(
-                label="⬇ Download Gabungan .pptx",
+                label=" Download Gabungan .pptx",
                 data=st.session_state["pptx_combined_buf"],
                 file_name=st.session_state["pptx_combined_fname"],
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
