@@ -6,13 +6,26 @@ Bertanggung jawab untuk:
 - Melakukan deteksi kolom otomatis (kategori vs numerik)
 - Mengagregas data (sum, mean, atau count per kategori)
 - Menghasilkan bullet points ringkasan untuk executive summary
+- Membaca sheet Result (Background + Productivity Result)
 """
 
 import pandas as pd
 import io
 import csv
 import openpyxl
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# KONSTANTA KOLOM SHEET RESULT
+# ─────────────────────────────────────────────────────────────────────────────
+COL_RESULT_NO  = "No"
+COL_RESULT_BG  = "Background"
+COL_RESULT_PR  = "Productivity Result"
+
+# Nama sheet standar
+SHEET_NAME_PROPOSAL = "Proposal"
+SHEET_NAME_RESULT   = "Result"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -423,5 +436,131 @@ def load_excel_sheet(file_bytes: bytes, sheet_name: str) -> pd.DataFrame:
         df[col] = df[col].astype(str).str.strip()
         # Bersihkan literal "nan" hasil astype dari NaN
         df[col] = df[col].replace({"nan": "", "None": "", "NaT": ""})
+
+    return df
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FUNGSI: detect_sheet_mode
+# ─────────────────────────────────────────────────────────────────────────────
+def detect_sheet_mode(file_bytes: bytes) -> Dict:
+    """
+    Mendeteksi mode file Excel: apakah memiliki sheet Proposal saja,
+    atau juga memiliki sheet Result.
+
+    Returns:
+    --------
+    dict dengan kunci:
+        - has_proposal  : bool
+        - has_result    : bool
+        - proposal_sheet: str | None  — nama sheet Proposal yang ditemukan
+        - result_sheet  : str | None  — nama sheet Result yang ditemukan
+        - all_sheets    : List[str]
+    """
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True, read_only=True)
+        sheet_names = wb.sheetnames
+        wb.close()
+    except Exception as e:
+        raise ValueError(f"Gagal membaca struktur Excel: {e}")
+
+    # Cari sheet secara case-insensitive
+    proposal_sheet = None
+    result_sheet   = None
+    for name in sheet_names:
+        name_lower = name.strip().lower()
+        if name_lower == SHEET_NAME_PROPOSAL.lower() and proposal_sheet is None:
+            proposal_sheet = name
+        if name_lower == SHEET_NAME_RESULT.lower() and result_sheet is None:
+            result_sheet = name
+
+    # Fallback: jika tidak ada nama persis, gunakan sheet pertama sebagai Proposal
+    if proposal_sheet is None and sheet_names:
+        proposal_sheet = sheet_names[0]
+
+    return {
+        "has_proposal":   proposal_sheet is not None,
+        "has_result":     result_sheet is not None,
+        "proposal_sheet": proposal_sheet,
+        "result_sheet":   result_sheet,
+        "all_sheets":     list(sheet_names),
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FUNGSI: load_result_sheet
+# ─────────────────────────────────────────────────────────────────────────────
+_RESULT_REQUIRED_COLS = {COL_RESULT_BG, COL_RESULT_PR}
+
+
+def _find_result_header_row(file_bytes: bytes, sheet_name: str, max_scan: int = 10) -> int:
+    """
+    Scan baris pertama sheet Result untuk menemukan baris header.
+    Kolom yang dikenali: 'Background', 'Productivity Result'.
+    """
+    wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True, read_only=True)
+    ws = wb[sheet_name]
+    required_upper = {c.upper() for c in _RESULT_REQUIRED_COLS}
+
+    for row_idx, row in enumerate(ws.iter_rows(max_row=max_scan, values_only=True)):
+        row_vals = {str(v).strip().upper() for v in row if v is not None}
+        if len(row_vals & required_upper) >= 1:
+            wb.close()
+            return row_idx
+
+    wb.close()
+    return 0
+
+
+def load_result_sheet(file_bytes: bytes, sheet_name: str = SHEET_NAME_RESULT) -> pd.DataFrame:
+    """
+    Membaca sheet Result dari file Excel ke dalam Pandas DataFrame.
+    Kolom yang diharapkan: No, Background, Productivity Result.
+
+    Parameter:
+    ----------
+    file_bytes : bytes
+        Konten file Excel dalam bentuk bytes.
+    sheet_name : str
+        Nama sheet Result (default: 'Result').
+
+    Returns:
+    --------
+    pd.DataFrame dengan kolom [No, Background, Productivity Result]
+    """
+    header_row = _find_result_header_row(file_bytes, sheet_name)
+
+    try:
+        df = pd.read_excel(
+            io.BytesIO(file_bytes),
+            sheet_name=sheet_name,
+            engine="openpyxl",
+            header=header_row,
+        )
+    except Exception as e:
+        raise ValueError(f"Gagal membaca sheet Result '{sheet_name}': {e}")
+
+    if df.empty:
+        raise ValueError(f"Sheet Result '{sheet_name}' tidak mengandung data.")
+
+    # ── Cleaning ────────────────────────────────────────────────────────────
+    df.columns = [str(c).strip() for c in df.columns]
+    unnamed_cols = [c for c in df.columns if c.startswith("Unnamed:")]
+    if unnamed_cols:
+        df = df.drop(columns=unnamed_cols)
+    df = df.dropna(how="all").reset_index(drop=True)
+
+    # Konversi semua kolom ke string dan bersihkan literal nan
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
+        df[col] = df[col].replace({"nan": "", "None": "", "NaT": ""})
+
+    # Validasi kolom wajib
+    missing = _RESULT_REQUIRED_COLS - set(df.columns)
+    if missing:
+        raise ValueError(
+            f"Kolom wajib tidak ditemukan di sheet Result: {missing}. "
+            f"Kolom yang tersedia: {list(df.columns)}"
+        )
 
     return df
