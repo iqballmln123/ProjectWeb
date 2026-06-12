@@ -28,6 +28,7 @@ from ppt_generator import (
     COL_FINDING, COL_PLAN_ACTION, COL_SUPPORT, COL_GOALS, COL_INCREMENT,
 )
 from ppt_generator_result import generate_result_pptx
+from font_embedder import embed_poppins_into_pptx
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -53,12 +54,45 @@ def merge_pptx(buf_a: bytes, buf_b: bytes) -> bytes:
     - Cover hanya 1x di awal, Penutup hanya 1x di akhir
     """
     import copy
+    import zipfile
     from pptx import Presentation
     from lxml import etree
 
-    # Buka kedua presentasi dari bytes
-    prs_a = Presentation(io.BytesIO(buf_a))  # Proposal (akan jadi base)
-    prs_b = Presentation(io.BytesIO(buf_b))  # Result (akan di-append)
+    def _strip_font_embed(pptx_bytes: bytes) -> bytes:
+        """
+        Hapus file .fntdata dari ZIP PPTX sebelum dibuka dengan Presentation().
+        Ini diperlukan karena python-pptx tidak bisa membuka PPTX yang memiliki
+        file .fntdata tanpa content-type yang dikenali, dan akan crash dengan:
+          'no content-type for partname /ppt/fonts/Poppins-X.fntdata'
+        Font akan di-embed ulang ke hasil merge setelah proses selesai.
+        """
+        buf_in  = io.BytesIO(pptx_bytes)
+        buf_out = io.BytesIO()
+        with zipfile.ZipFile(buf_in, 'r') as zin, \
+             zipfile.ZipFile(buf_out, 'w', compression=zipfile.ZIP_DEFLATED) as zout:
+            for item in zin.infolist():
+                # Skip file font (.fntdata) dan entry embeddedFont di presentation.xml
+                if item.filename.startswith('ppt/fonts/'):
+                    continue
+                data = zin.read(item.filename)
+                # Bersihkan <p:embeddedFontLst> dari presentation.xml
+                if item.filename == 'ppt/presentation.xml':
+                    data = data.replace(
+                        b'<p:embeddedFontLst>', b'<p:embeddedFontLst_DISABLED>'
+                    ).replace(
+                        b'</p:embeddedFontLst>', b'</p:embeddedFontLst_DISABLED>'
+                    )
+                zout.writestr(item, data)
+        buf_out.seek(0)
+        return buf_out.read()
+
+    # Strip font embed agar Presentation() bisa membuka file tanpa crash
+    buf_a_clean = _strip_font_embed(buf_a)
+    buf_b_clean = _strip_font_embed(buf_b)
+
+    # Buka kedua presentasi dari bytes (sudah bersih dari .fntdata)
+    prs_a = Presentation(io.BytesIO(buf_a_clean))
+    prs_b = Presentation(io.BytesIO(buf_b_clean))
 
     def _clone_slide(prs_target, slide_src, layout):
         """Clone satu slide dari sumber ke presentasi target."""
@@ -136,11 +170,14 @@ def merge_pptx(buf_a: bytes, buf_b: bytes) -> bytes:
     if result_closing is not None:
         _clone_to(prs_out, result_closing, blank_out)
 
-    # Simpan ke buffer bytes
+    # Simpan ke buffer bytes dan re-embed font Poppins
     out_buf = io.BytesIO()
     prs_out.save(out_buf)
     out_buf.seek(0)
-    return out_buf.getvalue()
+    merged_raw = out_buf.getvalue()
+
+    # Re-embed Poppins ke hasil merge agar font tetap konsisten
+    return embed_poppins_into_pptx(merged_raw)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

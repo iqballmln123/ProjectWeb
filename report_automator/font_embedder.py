@@ -133,7 +133,10 @@ def embed_poppins_into_pptx(pptx_bytes: bytes) -> bytes:
     style_to_rel_id: Dict[str, str] = {}   # "Regular" → "rId_poppins_reg" dst.
 
     # File yang akan kita patch — skip saat copy awal, tulis versi patched nanti
+    # WAJIB include [Content_Types].xml agar python-pptx tidak crash saat
+    # membuka PPTX dengan font embed (error: "no content-type for partname")
     FILES_TO_PATCH = {
+        "[Content_Types].xml",
         "ppt/_rels/presentation.xml.rels",
         "ppt/presentation.xml",
     }
@@ -193,12 +196,31 @@ def embed_poppins_into_pptx(pptx_bytes: bytes) -> bytes:
                 "</Relationships>",
                 new_rels + "</Relationships>"
             )
-            # Hapus file rels lama yang sudah disalin, tulis yang baru
-            # (ZipFile tidak bisa edit in-place; kita timpa lewat writestr)
-            # Karena ZipFile allow_zip64, tulis ulang:
-            zout.writestr(rels_path, rels_xml.encode("utf-8"))
+        zout.writestr(rels_path, rels_xml.encode("utf-8"))
 
-        # ── 3. Patch ppt/presentation.xml ── tambahkan <p:embeddedFont> ─
+        # ── 3. Patch [Content_Types].xml ── daftarkan .fntdata content type ─
+        # WAJIB: setiap file dalam ZIP PPTX harus terdaftar di sini.
+        # Tanpa ini, python-pptx crash dengan:
+        #   "no content-type for partname '/ppt/fonts/Poppins-X.fntdata'"
+        ct_path = "[Content_Types].xml"
+        if ct_path in existing_names:
+            ct_xml = zin.read(ct_path).decode("utf-8")
+        else:
+            ct_xml = (
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>'
+            )
+
+        # Tambahkan Default untuk ekstensi .fntdata jika belum ada
+        fntdata_ct = 'Extension="fntdata" ContentType="application/x-fontdata"'
+        if fntdata_ct not in ct_xml:
+            ct_xml = ct_xml.replace(
+                "</Types>",
+                f'<Default {fntdata_ct}/>\n</Types>'
+            )
+        zout.writestr(ct_path, ct_xml.encode("utf-8"))
+
+        # ── 4. Patch ppt/presentation.xml ── tambahkan <p:embeddedFont> ─
         prs_path = "ppt/presentation.xml"
         if prs_path in existing_names:
             prs_xml = zin.read(prs_path).decode("utf-8")
