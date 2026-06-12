@@ -957,7 +957,7 @@ def generate_pptx(
     prs = Presentation()
     prs.slide_width  = SLIDE_W
     prs.slide_height = SLIDE_H
-    _patch_theme_font(prs, \"Poppins\")   # ← ganti default theme font ke Poppins
+    _patch_theme_font(prs, 'Poppins')   # ← ganti default theme font ke Poppins
 
     # Siapkan data baris
     rows_data: List[Dict] = []

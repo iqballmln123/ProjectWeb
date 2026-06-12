@@ -486,7 +486,7 @@ def generate_result_pptx(
     prs = Presentation()
     prs.slide_width  = SLIDE_W
     prs.slide_height = SLIDE_H
-    _patch_theme_font(prs, "Poppins")   # ← ganti default theme font ke Poppins
+    _patch_theme_font(prs, 'Poppins')   # ← ganti default theme font ke Poppins
 
     df_p = df_proposal.copy()
     df_p.columns    = [str(c).strip() for c in df_p.columns]
