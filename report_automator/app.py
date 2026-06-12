@@ -730,23 +730,92 @@ if uploaded_file is not None:
                     key="dl_result",
                 )
 
-    # ── Download Gabungan (Proposal + Result) ─────────────────────────────
-    if (df_result is not None
-            and "pptx_proposal_buf" in st.session_state
-            and "pptx_result_buf" in st.session_state):
-
+    # ── Download Gabungan (Proposal + Result) — selalu tampil jika ada Result
+    if df_result is not None:
         st.divider()
         st.markdown("#### 🗂️ · Download Gabungan (Proposal + Result)")
         st.caption(
-            "Kedua laporan digabungkan dalam **satu file .pptx** — "
-            "urutan: seluruh slide Proposal terlebih dahulu, diikuti slide Result."
+            "Generate **keduanya sekaligus** dalam satu klik, atau download "
+            "masing-masing secara terpisah dari kolom di atas."
         )
 
+        # Tombol "Generate Semua" — otomatis generate Proposal + Result + merge
         if st.button(
-            "⚙️ Gabungkan & Siapkan Download",
+            "⚡ Generate Semua & Gabungkan (Proposal + Result)",
+            type="primary",
+            use_container_width=True,
+            key="btn_gen_all",
+        ):
+            combined_fname = (
+                f"Combined_{report_title.replace(' ', '_')}_"
+                f"{report_date.strftime('%Y%m%d')}.pptx"
+            )
+            try:
+                # 1) Generate Proposal
+                with st.spinner("⏳ Membuat PPT Proposal..."):
+                    pptx_buf = generate_pptx(
+                        title=report_title,
+                        subtitle=report_subtitle,
+                        author=author_name,
+                        report_date=report_date.strftime("%d %B %Y"),
+                        df_raw=df_proposal,
+                        site_images=site_images if site_images else {},
+                    )
+                    st.session_state["pptx_proposal_buf"] = pptx_buf
+                    st.session_state["pptx_proposal_fname"] = (
+                        f"Proposal_{report_title.replace(' ', '_')}_"
+                        f"{report_date.strftime('%Y%m%d')}.pptx"
+                    )
+
+                # 2) Generate Result
+                with st.spinner("⏳ Membuat PPT Result..."):
+                    pptx_result_buf = generate_result_pptx(
+                        title=report_title,
+                        subtitle=report_subtitle,
+                        author=author_name,
+                        report_date=report_date.strftime("%d %B %Y"),
+                        df_proposal=df_proposal,
+                        df_result=df_result,
+                        site_result_images=site_result_images if site_result_images else {},
+                    )
+                    st.session_state["pptx_result_buf"] = pptx_result_buf
+                    st.session_state["pptx_result_fname"] = (
+                        f"Result_{report_title.replace(' ', '_')}_"
+                        f"{report_date.strftime('%Y%m%d')}.pptx"
+                    )
+
+                # 3) Merge keduanya
+                with st.spinner("⏳ Menggabungkan..."):
+                    combined_buf = merge_pptx(pptx_buf, pptx_result_buf)
+                    st.session_state["pptx_combined_buf"] = combined_buf
+                    st.session_state["pptx_combined_fname"] = combined_fname
+
+                n_proposal = df_proposal.shape[0] + 2
+                n_result   = df_result.shape[0] + 2
+                st.success(
+                    f"✅ Semua berhasil dibuat! "
+                    f"Total **{n_proposal + n_result} slide** gabungan "
+                    f"({n_proposal} Proposal + {n_result} Result). "
+                    f"Download tersedia di bawah."
+                )
+            except Exception as e:
+                st.error(f"❌ Gagal: {e}")
+                import traceback
+                st.code(traceback.format_exc())
+
+        # Tombol "Gabungkan" — hanya aktif kalau keduanya sudah di-generate terpisah
+        both_ready = (
+            "pptx_proposal_buf" in st.session_state
+            and "pptx_result_buf" in st.session_state
+        )
+        if st.button(
+            "⚙️ Gabungkan yang Sudah Di-generate",
             type="secondary",
             use_container_width=True,
             key="btn_gen_combined",
+            disabled=not both_ready,
+            help="Generate Proposal & Result terlebih dahulu (kolom di atas) sebelum menggabungkan."
+                 if not both_ready else "Klik untuk menggabungkan kedua file yang sudah di-generate.",
         ):
             with st.spinner("Menggabungkan Proposal + Result..."):
                 try:
@@ -762,7 +831,7 @@ if uploaded_file is not None:
                     n_proposal = df_proposal.shape[0] + 2
                     n_result   = df_result.shape[0] + 2
                     st.success(
-                        f"✅ Berhasil! "
+                        f"✅ Berhasil digabungkan! "
                         f"Total **{n_proposal + n_result} slide** "
                         f"({n_proposal} Proposal + {n_result} Result)."
                     )
@@ -771,6 +840,7 @@ if uploaded_file is not None:
                     import traceback
                     st.code(traceback.format_exc())
 
+        # Download gabungan — muncul setelah salah satu tombol di atas berhasil
         if "pptx_combined_buf" in st.session_state:
             st.download_button(
                 label="⬇ Download Gabungan .pptx",
