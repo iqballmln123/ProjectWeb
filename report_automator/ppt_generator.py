@@ -158,6 +158,47 @@ def _txt_multiline(
         run.font.name = font
 
 
+def _patch_theme_font(prs, font_name: str = "Poppins"):
+    """
+    Patch theme XML presentasi agar major/minor font → Poppins.
+    Ini mencegah fallback ke Times New Roman / Calibri dari default template.
+    """
+    from lxml import etree as _etree
+    NSMAP = "http://schemas.openxmlformats.org/drawingml/2006/main"
+    for theme_part in prs.part.part_related_by(
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
+    ).blob and [] or []:
+        pass  # tidak dipakai
+
+    try:
+        # Akses theme part langsung via slide_master
+        slide_master = prs.slide_masters[0]
+        theme_part   = slide_master.part.part_related_by(
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
+        )
+        root = _etree.fromstring(theme_part.blob)
+        ns   = {"a": NSMAP}
+
+        # Cari elemen majorFont dan minorFont dalam themeElements → fmtScheme → ...
+        for tag in ("majorFont", "minorFont"):
+            nodes = root.findall(f".//a:{tag}", ns)
+            for node in nodes:
+                # Set latin typeface
+                latin = node.find("a:latin", ns)
+                if latin is None:
+                    latin = _etree.SubElement(
+                        node, f"{{{NSMAP}}}latin"
+                    )
+                latin.set("typeface", font_name)
+
+        # Simpan kembali blob yang sudah dipatch
+        theme_part._blob = _etree.tostring(root, xml_declaration=True,
+                                           encoding="UTF-8", standalone=True)
+    except Exception:
+        # Fallback jika struktur theme berbeda — abaikan saja
+        pass
+
+
 def _add_picture_fitted(slide, img_bytes: bytes,
                          left_in: float, top_in: float,
                          w_in: float, h_in: float,
@@ -915,6 +956,7 @@ def generate_pptx(
     prs = Presentation()
     prs.slide_width  = SLIDE_W
     prs.slide_height = SLIDE_H
+    _patch_theme_font(prs, \"Poppins\")   # ← ganti default theme font ke Poppins
 
     # Siapkan data baris
     rows_data: List[Dict] = []

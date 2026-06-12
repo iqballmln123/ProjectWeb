@@ -45,6 +45,7 @@ from ppt_generator import (
     _fill, _fill_border, _txb, _txt, _txt_multiline,
     _add_picture_fitted, _parse_bullets,
     _slide_1_cover, _slide_closing,
+    _patch_theme_font,
 )
 from data_processor import COL_RESULT_BG, COL_RESULT_PR
 
@@ -197,7 +198,7 @@ def _draw_desc_box(slide, x: float, y: float, w: float, h: float, text: str):
         para.alignment = PP_ALIGN.LEFT   # perataan kiri
         run = para.add_run()
         run.text = line.strip()
-        run.font.size = Pt(8)
+        run.font.size = Pt(12)
         run.font.color.rgb = COLOR_LABEL_TEXT   # navy gelap (terbaca di atas bg putih)
         run.font.name = "Poppins"
 
@@ -484,6 +485,7 @@ def generate_result_pptx(
     prs = Presentation()
     prs.slide_width  = SLIDE_W
     prs.slide_height = SLIDE_H
+    _patch_theme_font(prs, "Poppins")   # ← ganti default theme font ke Poppins
 
     df_p = df_proposal.copy()
     df_p.columns    = [str(c).strip() for c in df_p.columns]
