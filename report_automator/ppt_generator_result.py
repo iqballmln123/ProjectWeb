@@ -164,7 +164,7 @@ def _draw_section_container(slide, x: float, y: float, w: float, h: float,
 
     # 3. Section title text (white bold centered)
     txb = _txb(slide, x + 0.12, y + 0.07, w - 0.24, SEC_HDR_H - 0.08)
-    _txt(txb.text_frame, title, 18, bold=True, color=COLOR_WHITE,
+    _txt(txb.text_frame, title, 12, bold=True, color=COLOR_WHITE,
          align=PP_ALIGN.CENTER)
 
     return y + SEC_HDR_H + INNER_PY
@@ -199,7 +199,7 @@ def _draw_desc_box(slide, x: float, y: float, w: float, h: float, text: str):
         para.alignment = PP_ALIGN.LEFT   # perataan kiri
         run = para.add_run()
         run.text = line.strip()
-        run.font.size = Pt(12)
+        run.font.size = Pt(10)
         run.font.color.rgb = COLOR_LABEL_TEXT   # navy gelap (terbaca di atas bg putih)
         run.font.name = "Poppins"
 
