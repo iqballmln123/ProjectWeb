@@ -333,11 +333,11 @@ def _slide_result_site(
     # Baris 1: judul utama (navy bold) di dalam pill
     txb_title = _txb(slide, 0.88, 0.085, 10.40, 0.35)
     txb_title.text_frame.word_wrap = True
-    _txt(txb_title.text_frame, title_text, 22, bold=True, color=COLOR_DARK_NAVY)
+    _txt(txb_title.text_frame, title_text, 18, bold=True, color=COLOR_DARK_NAVY)
 
     # Baris 2: subtitle (navy italic)
-    txb_sub = _txb(slide, 0.88, 0.41, 10.40, 0.22)
-    _txt(txb_sub.text_frame, subtitle_text, 12, italic=True, color=COLOR_DARK_NAVY)
+    txb_sub = _txb(slide, 0.88, 0.41, 10.40, 0.18)
+    _txt(txb_sub.text_frame, subtitle_text, 14, italic=True, color=COLOR_DARK_NAVY)
 
     # ── Telkomsel logo kanan (teks putih, vertikal center di header) ────────
     txb_tel = _txb(slide, 11.58, 0.17, 1.67, 0.42)
