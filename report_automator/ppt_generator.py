@@ -114,7 +114,7 @@ def _txt(
     italic: bool = False,
     color: RGBColor = COLOR_BLACK,
     align=PP_ALIGN.LEFT,
-    font: str = "Times New Roman",
+    font: str = "Poppins",
 ):
     """Set teks di text frame (clear dulu)."""
     tf.clear()
@@ -136,7 +136,7 @@ def _txt_multiline(
     bold: bool = False,
     color: RGBColor = COLOR_BLACK,
     bullet: bool = False,
-    font: str = "Times New Roman",
+    font: str = "Poppins",
 ):
     """Set multi-baris teks di text frame."""
     tf.clear()
@@ -227,7 +227,7 @@ def _slide_1_cover(prs, title: str, subtitle: str, author: str, report_date: str
 
     # Logo teks kiri
     txb = _txb(slide, 0.5, 0.3, 5.5, 0.75)
-    _txt(txb.text_frame, "TELKOMSEL", 32, bold=True, color=COLOR_WHITE, font="Times New Roman")
+    _txt(txb.text_frame, "TELKOMSEL", 32, bold=True, color=COLOR_WHITE, font="Poppins")
 
     txb_tag = _txb(slide, 0.5, 0.98, 6.0, 0.35)
     _txt(txb_tag.text_frame, "The Biggest & Most Innovative Digital Telco of Indonesia",
@@ -515,18 +515,17 @@ def _slide_data_site(
     # Textbox baris 1 (putih bold)
     txb_line1 = _txb(slide, 0.18, 0.07, 10.6, 0.44)
     txb_line1.text_frame.word_wrap = True
-    _txt(txb_line1.text_frame, header_line1, 13, bold=True, color=COLOR_WHITE)
+    _txt(txb_line1.text_frame, header_line1, 18, bold=True, color=COLOR_WHITE)
 
-    # Textbox baris 2 (merah maroon, italic)
+    # Textbox baris 2 (putih bold)
     txb_line2 = _txb(slide, 0.18, 0.50, 10.6, 0.28)
     txb_line2.text_frame.word_wrap = False
-    _txt(txb_line2.text_frame, header_line2, 9.5, bold=False, italic=True,
-         color=COLOR_RED_MAROON)
+    _txt(txb_line2.text_frame, header_line2, 12, bold=True, color=COLOR_WHITE)
 
-    # Logo "Telkomsel" pojok kanan atas (merah, italic, Times New Roman)
+    # Logo "Telkomsel" pojok kanan atas (merah, italic, Poppins)
     txb_logo = _txb(slide, 10.85, 0.08, 2.35, 0.42)
     _txt(txb_logo.text_frame, "Telkomsel", 20, bold=True, italic=True,
-         color=COLOR_RED, align=PP_ALIGN.RIGHT, font="Times New Roman")
+         color=COLOR_RED, align=PP_ALIGN.RIGHT, font="Poppins")
 
     # ── GARIS VERTIKAL PEMISAH KIRI-KANAN ───────────────────────────────
     vline_main = slide.shapes.add_shape(
@@ -823,7 +822,7 @@ def _slide_closing(prs, author: str, report_date: str, report_title: str,
     # Kiri: pesan penutup
     txb_logo = _txb(slide, 0.4, 0.35, 5.3, 0.75)
     _txt(txb_logo.text_frame, "TELKOMSEL", 30, bold=True,
-         color=COLOR_WHITE, font="Times New Roman")
+         color=COLOR_WHITE, font="Poppins")
 
     txb_tg = _txb(slide, 0.4, 1.0, 5.5, 0.32)
     _txt(txb_tg.text_frame, "The Biggest & Most Innovative Digital Telco of Indonesia",

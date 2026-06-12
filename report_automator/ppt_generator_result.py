@@ -162,7 +162,7 @@ def _draw_section_container(slide, x: float, y: float, w: float, h: float,
 
     # 3. Section title text (white bold centered)
     txb = _txb(slide, x + 0.12, y + 0.07, w - 0.24, SEC_HDR_H - 0.08)
-    _txt(txb.text_frame, title, 10.5, bold=True, color=COLOR_WHITE,
+    _txt(txb.text_frame, title, 18, bold=True, color=COLOR_WHITE,
          align=PP_ALIGN.CENTER)
 
     return y + SEC_HDR_H + INNER_PY
@@ -175,7 +175,7 @@ def _draw_plain_label(slide, x: float, y: float, w: float, text: str,
                       size: float = 8.5):
     """Label teks kecil gelap tanpa background (seperti 'Site Mapping', 'Before')."""
     txb = _txb(slide, x, y, w, LABEL_H)
-    _txt(txb.text_frame, text, size, bold=False, color=COLOR_LABEL_TEXT)
+    _txt(txb.text_frame, text, size, bold=True, color=COLOR_LABEL_TEXT)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -199,7 +199,7 @@ def _draw_desc_box(slide, x: float, y: float, w: float, h: float, text: str):
         run.text = line.strip()
         run.font.size = Pt(8)
         run.font.color.rgb = COLOR_LABEL_TEXT   # navy gelap (terbaca di atas bg putih)
-        run.font.name = "Times New Roman"
+        run.font.name = "Poppins"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -331,16 +331,16 @@ def _slide_result_site(
     # Baris 1: judul utama (navy bold) di dalam pill
     txb_title = _txb(slide, 0.88, 0.085, 10.40, 0.35)
     txb_title.text_frame.word_wrap = True
-    _txt(txb_title.text_frame, title_text, 12, bold=True, color=COLOR_DARK_NAVY)
+    _txt(txb_title.text_frame, title_text, 18, bold=True, color=COLOR_DARK_NAVY)
 
     # Baris 2: subtitle (navy italic)
     txb_sub = _txb(slide, 0.88, 0.41, 10.40, 0.22)
-    _txt(txb_sub.text_frame, subtitle_text, 8.5, italic=True, color=COLOR_DARK_NAVY)
+    _txt(txb_sub.text_frame, subtitle_text, 12, italic=True, color=COLOR_DARK_NAVY)
 
     # ── Telkomsel logo kanan (teks putih, vertikal center di header) ────────
     txb_tel = _txb(slide, 11.58, 0.17, 1.67, 0.42)
     _txt(txb_tel.text_frame, "Telkomsel", 18, bold=True, italic=True,
-         color=COLOR_WHITE, align=PP_ALIGN.CENTER, font="Times New Roman")
+         color=COLOR_WHITE, align=PP_ALIGN.CENTER, font="Poppins")
 
     # ════════════════════════════════════════════════════════════════════════
     # SECTION 1 — Background
