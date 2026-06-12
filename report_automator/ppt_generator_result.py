@@ -333,7 +333,7 @@ def _slide_result_site(
     # Baris 1: judul utama (navy bold) di dalam pill
     txb_title = _txb(slide, 0.88, 0.085, 10.40, 0.35)
     txb_title.text_frame.word_wrap = True
-    _txt(txb_title.text_frame, title_text, 12, bold=True, color=COLOR_DARK_NAVY)
+    _txt(txb_title.text_frame, title_text, 22, bold=True, color=COLOR_DARK_NAVY)
 
     # Baris 2: subtitle (navy italic)
     txb_sub = _txb(slide, 0.88, 0.41, 10.40, 0.22)
