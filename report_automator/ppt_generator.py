@@ -36,6 +36,7 @@ from pptx.util import Inches, Pt, Emu
 from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
 from PIL import Image as PILImage
+from font_embedder import embed_poppins_into_pptx
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -986,4 +987,6 @@ def generate_pptx(
     buf = io.BytesIO()
     prs.save(buf)
     buf.seek(0)
-    return buf.read()
+    raw = buf.read()
+    # Embed font Poppins ke dalam PPTX agar tampil benar di Canva / PowerPoint
+    return embed_poppins_into_pptx(raw)

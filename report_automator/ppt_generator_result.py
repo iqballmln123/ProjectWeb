@@ -48,6 +48,7 @@ from ppt_generator import (
     _patch_theme_font,
 )
 from data_processor import COL_RESULT_BG, COL_RESULT_PR
+from font_embedder import embed_poppins_into_pptx
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -514,4 +515,6 @@ def generate_result_pptx(
     buf = io.BytesIO()
     prs.save(buf)
     buf.seek(0)
-    return buf.read()
+    raw = buf.read()
+    # Embed font Poppins ke dalam PPTX agar tampil benar di Canva / PowerPoint
+    return embed_poppins_into_pptx(raw)
